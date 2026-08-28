@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../models/red_model.dart';
+import '../models/grupo_model.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 
@@ -34,6 +36,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
             const SizedBox(height: 12),
             _graficaMiembrosPorRed(),
             const SizedBox(height: 28),
+            _tituloSeccion('GRUPOS POR RED'),
+            const SizedBox(height: 12),
+            _graficaGruposPorRed(),
+            const SizedBox(height: 28),
             _tituloSeccion('GRUPOS POR ESTADO'),
             const SizedBox(height: 12),
             _graficaGruposPorEstado(),
@@ -67,26 +73,33 @@ class _ReportesScreenState extends State<ReportesScreen> {
             return StreamBuilder(
               stream: _service.contarLideres(),
               builder: (context, snapLideres) {
-                return GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics:
-                      const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1.8,
-                  children: [
-                    _cardReporte('Total miembros',
-                        '${snapMiembros.data ?? 0}',
-                        Icons.people),
-                    _cardReporte('Grupos activos',
-                        '${snapGrupos.data ?? 0}',
-                        Icons.home_work),
-                    _cardReporte('Líderes',
-                        '${snapLideres.data ?? 0}',
-                        Icons.star),
-                    _cardReporte('Redes', '—', Icons.hub),
-                  ],
+                return StreamBuilder(
+                  stream: _service.getRedes(),
+                  builder: (context, snapRedes) {
+                    return GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics:
+                          const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 1.3,
+                      children: [
+                        _cardReporte('Total miembros',
+                            '${snapMiembros.data ?? 0}',
+                            Icons.people),
+                        _cardReporte('Grupos activos',
+                            '${snapGrupos.data ?? 0}',
+                            Icons.home_work),
+                        _cardReporte('Líderes',
+                            '${snapLideres.data ?? 0}',
+                            Icons.star),
+                        _cardReporte('Redes',
+                            '${snapRedes.data?.length ?? 0}',
+                            Icons.hub),
+                      ],
+                    );
+                  },
                 );
               },
             );
@@ -99,31 +112,34 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget _cardReporte(
       String titulo, String valor, IconData icono) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.fondoTarjeta,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.borde),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 32, height: 32,
+            width: 28, height: 28,
             decoration: BoxDecoration(
               color: AppColors.acentoSuave,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
               border: Border.all(color: AppColors.borde),
             ),
             child: Icon(icono,
-                color: AppColors.textoPrimario, size: 16),
+                color: AppColors.textoPrimario, size: 14),
           ),
-          const Spacer(),
+          const SizedBox(height: 8),
           Text(valor,
               style: const TextStyle(
                   color: AppColors.textoPrimario,
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold)),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
           Text(titulo,
               style: const TextStyle(
                   color: AppColors.textoSecundario,
@@ -137,33 +153,181 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   Widget _graficaMiembrosPorRed() {
     return StreamBuilder(
-      stream: _service.getMiembros(),
+      stream: _service.getRedes(),
+      builder: (context, snapRedes) {
+        if (!snapRedes.hasData) {
+          return _sinDatos('Cargando...');
+        }
+        final todasLasRedes = snapRedes.data!;
+        if (todasLasRedes.isEmpty) {
+          return _sinDatos('Aún no has creado redes');
+        }
+        return StreamBuilder(
+          stream: _service.getMiembros(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return _sinDatos('Cargando...');
+            }
+            final miembros = snapshot.data!;
+            final Map<String, int> redes = {
+              for (final r in todasLasRedes) r.nombre: 0,
+            };
+            for (final m in miembros) {
+              for (final nombreRed in m.redesNombres) {
+                if (redes.containsKey(nombreRed)) {
+                  redes[nombreRed] = redes[nombreRed]! + 1;
+                }
+              }
+            }
+            final total =
+                redes.values.fold(0, (a, b) => a + b);
+            if (total == 0) {
+              return _sinDatos(
+                  'Ningún miembro tiene una red asignada aún');
+            }
+
+            final colores = [
+              AppColors.acento,
+              AppColors.exito,
+              AppColors.advertencia,
+              AppColors.error,
+              AppColors.textoSecundario,
+              AppColors.bordeActivo,
+            ];
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.fondoTarjeta,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borde),
+              ),
+              child: Column(
+                children: [
+                  if (miembros.any((m) => m.redesNombres.length > 1))
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Un miembro puede pertenecer a varias redes, '
+                        'por eso la suma puede superar el total de miembros',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: AppColors.textoTerciario,
+                            fontSize: 10),
+                      ),
+                    ),
+                  SizedBox(
+                    height: 180,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 45,
+                        sections: redes.entries
+                            .toList()
+                            .asMap()
+                            .entries
+                            .where((e) => e.value.value > 0)
+                            .map((e) {
+                          final color = colores[
+                              e.key % colores.length];
+                          final pct =
+                              e.value.value / total * 100;
+                          return PieChartSectionData(
+                            color: color,
+                            value: e.value.value.toDouble(),
+                            title: '${pct.round()}%',
+                            radius: 50,
+                            titleStyle: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: redes.entries
+                        .toList()
+                        .asMap()
+                        .entries
+                        .where((e) => e.value.value > 0)
+                        .map((e) {
+                      final color =
+                          colores[e.key % colores.length];
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                              width: 10, height: 10,
+                              decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                                '${e.value.key}: ${e.value.value}',
+                                overflow:
+                                    TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: AppColors
+                                        .textoSecundario,
+                                    fontSize: 11)),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _graficaGruposPorRed() {
+    return StreamBuilder(
+      stream: _service.getGrupos(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return _sinDatos('Cargando...');
         }
-        final miembros = snapshot.data!;
-        final redes = {
-          'Jóvenes': 0, 'Niños': 0, 'Mujeres': 0,
-          'Hombres': 0, 'Adultos mayores': 0,
-        };
-        for (final m in miembros) {
-          if (redes.containsKey(m.red)) {
-            redes[m.red] = redes[m.red]! + 1;
+        final grupos = (snapshot.data as List<Grupo>);
+
+        // Solo redes que tienen al menos una célula asignada
+        // (las mismas que se seleccionan al crear un grupo en el mapa).
+        final Map<String, String> nombresRed = {};
+        final Map<String, int> conteoRed = {};
+        for (final g in grupos) {
+          if (g.redId != null && g.redId!.isNotEmpty) {
+            nombresRed[g.redId!] = g.redNombre ?? g.redId!;
+            conteoRed[g.redId!] = (conteoRed[g.redId!] ?? 0) + 1;
           }
         }
-        final total =
-            redes.values.fold(0, (a, b) => a + b);
-        if (total == 0) {
-          return _sinDatos('Sin miembros registrados aún');
+
+        if (conteoRed.isEmpty) {
+          return _sinDatos(
+              'Ningún grupo tiene una red asignada aún');
         }
 
+        final entradas = conteoRed.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        final maximo = entradas.first.value;
+
         final colores = [
-          AppColors.textoPrimario,
+          AppColors.acento,
+          AppColors.exito,
+          AppColors.advertencia,
+          AppColors.error,
           AppColors.textoSecundario,
           AppColors.bordeActivo,
-          Colors.white60,
-          Colors.white30,
         ];
 
         return Container(
@@ -174,68 +338,55 @@ class _ReportesScreenState extends State<ReportesScreen> {
             border: Border.all(color: AppColors.borde),
           ),
           child: Column(
-            children: [
-              SizedBox(
-                height: 180,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 2,
-                    centerSpaceRadius: 45,
-                    sections: redes.entries
-                        .toList()
-                        .asMap()
-                        .entries
-                        .where((e) => e.value.value > 0)
-                        .map((e) {
-                      final color =
-                          colores[e.key % colores.length];
-                      final pct =
-                          e.value.value / total * 100;
-                      return PieChartSectionData(
-                        color: color,
-                        value: e.value.value.toDouble(),
-                        title: '${pct.round()}%',
-                        radius: 50,
-                        titleStyle: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.fondoPrincipal,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: entradas.asMap().entries.map((e) {
+              final color = colores[e.key % colores.length];
+              final nombre = nombresRed[e.value.key] ?? e.value.key;
+              final cantidad = e.value.value;
+              final proporcion = maximo == 0
+                  ? 0.0
+                  : cantidad / maximo;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(nombre,
+                              style: const TextStyle(
+                                  color:
+                                      AppColors.textoPrimario,
+                                  fontSize: 13),
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis),
                         ),
-                      );
-                    }).toList(),
-                  ),
+                        Text('$cantidad',
+                            style: TextStyle(
+                                color: color,
+                                fontSize: 13,
+                                fontWeight:
+                                    FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: proporcion.clamp(0.05, 1.0),
+                        minHeight: 8,
+                        backgroundColor: AppColors.fondoInput,
+                        valueColor:
+                            AlwaysStoppedAnimation(color),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: redes.entries
-                    .toList()
-                    .asMap()
-                    .entries
-                    .map((e) {
-                  final color =
-                      colores[e.key % colores.length];
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                          width: 10, height: 10,
-                          decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle)),
-                      const SizedBox(width: 4),
-                      Text(
-                          '${e.value.key}: ${e.value.value}',
-                          style: const TextStyle(
-                              color: AppColors.textoSecundario,
-                              fontSize: 11)),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ],
+              );
+            }).toList(),
           ),
         );
       },

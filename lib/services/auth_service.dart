@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/miembro_model.dart';
+import 'firestore_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -93,6 +94,16 @@ class AuthService {
   Future<void> cerrarSesion() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+    FirestoreService.iglesiaIdActual = null;
+  }
+
+  Future<String?> recuperarPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      return null;
+    } catch (e) {
+      return _mensajeError(e.toString());
+    }
   }
 
   String _mensajeError(String error) {

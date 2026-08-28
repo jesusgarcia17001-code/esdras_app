@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/miembro_model.dart';
@@ -9,7 +11,14 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  String get iglesiaId => _auth.currentUser!.uid;
+  /// ID real de la iglesia del usuario actual. Se establece una sola vez,
+  /// justo después del login/registro (por CUALQUIER camino que lleve a
+  /// HomeScreen), con el iglesiaId guardado en su perfil
+  /// (usuarios/{uid}.iglesiaId) — NO es lo mismo que su uid.
+  static String? iglesiaIdActual;
+
+  String get iglesiaId =>
+      iglesiaIdActual ?? _auth.currentUser!.uid;
 
   Future<Map<String, dynamic>?> getUsuarioActual() async {
     final doc = await _db
@@ -90,6 +99,100 @@ class FirestoreService {
         .collection('miembros')
         .doc(miembroId)
         .update(miembro.toMap());
+  }
+
+  // ---- IMPORTACIÓN MASIVA DE MIEMBROS ----
+  /// Lee assets/data/base_sinai_perfiles.json y sube cada persona como
+  /// Miembro, usando el id original (sinai-0001, etc.) como id del
+  /// documento en Firestore. Si se corre más de una vez, sobreescribe
+  /// en vez de duplicar. Devuelve la cantidad de miembros importados.
+  Future<int> importarMiembrosDesdeJson() async {
+    final texto = await rootBundle
+        .loadString('assets/data/base_sinai_perfiles.json');
+    final data = jsonDecode(texto) as Map<String, dynamic>;
+    final lista = (data['miembros'] as List).cast<Map<String, dynamic>>();
+
+    String cap(String? s) {
+      if (s == null || s.trim().isEmpty) return '';
+      return s[0].toUpperCase() + s.substring(1).toLowerCase();
+    }
+
+    final coleccion = _db
+        .collection('iglesias')
+        .doc(iglesiaId)
+        .collection('miembros');
+
+    const tamanoLote = 400; // límite de Firestore es 500 por batch
+    var importados = 0;
+
+    for (var i = 0; i < lista.length; i += tamanoLote) {
+      final batch = _db.batch();
+      final trozo = lista.skip(i).take(tamanoLote);
+
+      for (final m in trozo) {
+        final idOriginal = m['id'] as String? ?? '';
+        if (idOriginal.isEmpty) continue;
+
+        final miembro = Miembro(
+          nombreCompleto: m['nombre_completo'] ?? '',
+          cedula: m['cedula']?.toString() ?? '',
+          email: m['correo_electronico']?.toString() ?? '',
+          telefono: m['telefono']?.toString() ?? '',
+          direccion: m['direccion']?.toString() ?? '',
+          genero: cap(m['genero']).isEmpty
+              ? 'Masculino'
+              : cap(m['genero']),
+          estadoCivil: cap(m['estado_civil']).isEmpty
+              ? 'Soltero'
+              : cap(m['estado_civil']),
+          bautizado: m['bautizado'] == true,
+          ministerios: (m['ministerios'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+          trabaja: m['trabaja_actualmente'] == true,
+          profesion: m['profesion']?.toString() ?? '',
+          lugarTrabajo: m['lugar_de_trabajo']?.toString() ?? '',
+          estado: (m['estado_iglesia']?.toString().toLowerCase() ==
+                  'inactivo')
+              ? 'Inactivo'
+              : 'Activo',
+          fechaIngreso: DateTime.now(),
+          notas: m['observacion']?.toString() ?? '',
+          esLider: m['es_lider'] == true,
+          rolLider: m['tipo_lider']?.toString() ?? '',
+          fechaRegistro: DateTime.now(),
+        );
+
+        batch.set(coleccion.doc(idOriginal), miembro.toMap());
+        importados++;
+      }
+
+      await batch.commit();
+    }
+
+    return importados;
+  }
+
+  /// Asigna una red a varios miembros a la vez (se agrega a las que
+  /// ya tenían, no las reemplaza), usando un batch para que sea rápido.
+  Future<void> asignarRedAMiembros({
+    required List<String> miembrosIds,
+    required String redId,
+    required String redNombre,
+  }) async {
+    final coleccion = _db
+        .collection('iglesias')
+        .doc(iglesiaId)
+        .collection('miembros');
+    final batch = _db.batch();
+    for (final id in miembrosIds) {
+      batch.update(coleccion.doc(id), {
+        'redesIds': FieldValue.arrayUnion([redId]),
+        'redesNombres': FieldValue.arrayUnion([redNombre]),
+      });
+    }
+    await batch.commit();
   }
 
   // ---- GRUPOS ----

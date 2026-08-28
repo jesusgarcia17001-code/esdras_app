@@ -105,7 +105,8 @@ class Miembro {
 
   // Datos espirituales
   final bool bautizado;
-  final String red; // Jóvenes, Niños, Mujeres, Hombres, Adultos mayores
+  final List<String> redesIds;
+  final List<String> redesNombres;
   final List<String> ministerios;
   final String rolIglesia;
 
@@ -140,7 +141,8 @@ class Miembro {
     this.genero = 'Masculino',
     this.estadoCivil = 'Soltero',
     this.bautizado = false,
-    this.red = 'Jóvenes',
+    this.redesIds = const [],
+    this.redesNombres = const [],
     this.ministerios = const [],
     this.rolIglesia = '',
     this.trabaja = false,
@@ -172,6 +174,9 @@ class Miembro {
 
   bool get esMayorDeEdad => edad >= 18;
 
+  String get redesTexto =>
+      redesNombres.isEmpty ? 'Sin red' : redesNombres.join(', ');
+
   Map<String, dynamic> toMap() => {
     'nombreCompleto': nombreCompleto,
     'cedula': cedula,
@@ -183,7 +188,8 @@ class Miembro {
     'genero': genero,
     'estadoCivil': estadoCivil,
     'bautizado': bautizado,
-    'red': red,
+    'redesIds': redesIds,
+    'redesNombres': redesNombres,
     'ministerios': ministerios,
     'rolIglesia': rolIglesia,
     'trabaja': trabaja,
@@ -217,7 +223,14 @@ class Miembro {
         genero: m['genero'] ?? 'Masculino',
         estadoCivil: m['estadoCivil'] ?? 'Soltero',
         bautizado: m['bautizado'] ?? false,
-        red: m['red'] ?? 'Jóvenes',
+        redesIds: List<String>.from(m['redesIds'] ?? []),
+        redesNombres: m['redesNombres'] != null
+            ? List<String>.from(m['redesNombres'])
+            // Compatibilidad con registros antiguos que solo
+            // tenían un campo 'red' de texto único.
+            : (m['red'] != null && (m['red'] as String).isNotEmpty
+                ? [m['red']]
+                : []),
         ministerios:
             List<String>.from(m['ministerios'] ?? []),
         rolIglesia: m['rolIglesia'] ?? '',

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/iglesia_service.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 
 class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key});
@@ -33,10 +35,11 @@ class _SetupScreenState extends State<SetupScreen> {
             onPressed: () async {
               await _authService.cerrarSesion();
               if (!mounted) return;
-              Navigator.pushReplacement(
+              Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const HomeScreen()));
+                      builder: (_) => const LoginScreen()),
+                  (route) => false);
             },
             child: const Text('Salir',
                 style: TextStyle(
@@ -316,6 +319,9 @@ class _SetupScreenState extends State<SetupScreen> {
       );
     } else {
       if (!mounted) return;
+      final usuario = await _iglesiaService.getUsuario();
+      FirestoreService.iglesiaIdActual = usuario?.iglesiaId;
+      if (!mounted) return;
       Navigator.pushReplacement(context,
           MaterialPageRoute(
               builder: (_) => const HomeScreen()));
@@ -347,6 +353,9 @@ class _SetupScreenState extends State<SetupScreen> {
         ),
       );
     } else {
+      if (!mounted) return;
+      final usuario = await _iglesiaService.getUsuario();
+      FirestoreService.iglesiaIdActual = usuario?.iglesiaId;
       if (!mounted) return;
       Navigator.pushReplacement(context,
           MaterialPageRoute(

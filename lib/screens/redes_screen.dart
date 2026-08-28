@@ -414,12 +414,23 @@ class _FormularioRedState extends State<FormularioRed> {
   List<Miembro> _lideres = [];
   List<Miembro> _miembros = [];
   bool _cargando = false;
+  bool _seleccionesCargadas = false;
 
   @override
   void initState() {
     super.initState();
     _service.getMiembros().listen((l) {
-      setState(() => _todosMiembros = l);
+      setState(() {
+        _todosMiembros = l;
+        final r = widget.red;
+        if (!_seleccionesCargadas && r != null) {
+          _lideres =
+              l.where((m) => r.lideresIds.contains(m.id)).toList();
+          _miembros =
+              l.where((m) => r.miembrosIds.contains(m.id)).toList();
+          _seleccionesCargadas = true;
+        }
+      });
     });
     if (widget.red != null) {
       final r = widget.red!;
@@ -435,68 +446,120 @@ class _FormularioRedState extends State<FormularioRed> {
     required Function(List<Miembro>) onConfirmar,
   }) {
     final temp = List<Miembro>.from(seleccionados);
+    var busqueda = '';
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          backgroundColor: AppColors.fondoSecundario,
-          title: Text(titulo,
-              style: const TextStyle(
-                  color: AppColors.textoPrimario)),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: _todosMiembros.isEmpty
-                ? const Center(
-                    child: Text('No hay miembros registrados',
-                        style: TextStyle(
-                            color: AppColors.textoSecundario)))
-                : ListView.builder(
-                    itemCount: _todosMiembros.length,
-                    itemBuilder: (_, i) {
-                      final m = _todosMiembros[i];
-                      final sel =
-                          temp.any((s) => s.id == m.id);
-                      return CheckboxListTile(
-                        value: sel,
-                        activeColor: AppColors.textoPrimario,
-                        checkColor: AppColors.fondoPrincipal,
-                        title: Text(m.nombreCompleto,
-                            style: const TextStyle(
-                                color: AppColors.textoPrimario,
-                                fontSize: 13)),
-                        subtitle: Text(m.red,
-                            style: const TextStyle(
-                                color: AppColors.textoSecundario,
-                                fontSize: 11)),
-                        onChanged: (v) => setS(() {
-                          if (v == true) {
-                            temp.add(m);
-                          } else {
-                            temp.removeWhere(
-                                (s) => s.id == m.id);
-                          }
-                        }),
-                      );
-                    },
+        builder: (ctx, setS) {
+          final filtrados = busqueda.isEmpty
+              ? _todosMiembros
+              : _todosMiembros
+                  .where((m) => m.nombreCompleto
+                      .toLowerCase()
+                      .contains(busqueda.toLowerCase()))
+                  .toList();
+          return AlertDialog(
+            backgroundColor: AppColors.fondoSecundario,
+            title: Text(titulo,
+                style: const TextStyle(
+                    color: AppColors.textoPrimario)),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: Column(
+                children: [
+                  if (_todosMiembros.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TextField(
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario,
+                            fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por nombre...',
+                          hintStyle: const TextStyle(
+                              color: AppColors.textoSecundario,
+                              fontSize: 13),
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppColors.textoSecundario,
+                              size: 18),
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.fondoInput,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (v) => setS(() => busqueda = v),
+                      ),
+                    ),
+                  Expanded(
+                    child: _todosMiembros.isEmpty
+                        ? const Center(
+                            child: Text('No hay miembros registrados',
+                                style: TextStyle(
+                                    color: AppColors.textoSecundario)))
+                        : filtrados.isEmpty
+                            ? const Center(
+                                child: Text('Sin resultados',
+                                    style: TextStyle(
+                                        color:
+                                            AppColors.textoSecundario)))
+                            : ListView.builder(
+                                itemCount: filtrados.length,
+                                itemBuilder: (_, i) {
+                                  final m = filtrados[i];
+                                  final sel =
+                                      temp.any((s) => s.id == m.id);
+                                  return CheckboxListTile(
+                                    value: sel,
+                                    activeColor:
+                                        AppColors.textoPrimario,
+                                    checkColor:
+                                        AppColors.fondoPrincipal,
+                                    title: Text(m.nombreCompleto,
+                                        style: const TextStyle(
+                                            color:
+                                                AppColors.textoPrimario,
+                                            fontSize: 13)),
+                                    subtitle: Text(m.redesTexto,
+                                        style: const TextStyle(
+                                            color: AppColors
+                                                .textoSecundario,
+                                            fontSize: 11)),
+                                    onChanged: (v) => setS(() {
+                                      if (v == true) {
+                                        temp.add(m);
+                                      } else {
+                                        temp.removeWhere(
+                                            (s) => s.id == m.id);
+                                      }
+                                    }),
+                                  );
+                                },
+                              ),
                   ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar',
-                    style: TextStyle(
-                        color: AppColors.textoSecundario))),
-            TextButton(
-                onPressed: () {
-                  onConfirmar(temp);
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Confirmar',
-                    style: TextStyle(
-                        color: AppColors.textoPrimario))),
-          ],
-        ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar',
+                      style: TextStyle(
+                          color: AppColors.textoSecundario))),
+              TextButton(
+                  onPressed: () {
+                    onConfirmar(temp);
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Confirmar',
+                      style: TextStyle(
+                          color: AppColors.textoPrimario))),
+            ],
+          );
+        },
       ),
     );
   }
@@ -620,7 +683,7 @@ class _FormularioRedState extends State<FormularioRed> {
                     ? const SizedBox(
                         width: 20, height: 20,
                         child: CircularProgressIndicator(
-                            color: AppColors.fondoPrincipal,
+                            color: AppColors.acentoTexto,
                             strokeWidth: 2))
                     : Text(
                         widget.red == null

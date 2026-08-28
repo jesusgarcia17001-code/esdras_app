@@ -5,6 +5,7 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/setup_screen.dart';
 import 'services/iglesia_service.dart';
+import 'services/firestore_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -27,9 +28,10 @@ class MyApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
+              backgroundColor: AppColors.fondoPrincipal,
               body: Center(
                 child: CircularProgressIndicator(
-                    color: Colors.white),
+                    color: AppColors.acento),
               ),
             );
           }
@@ -40,20 +42,29 @@ class MyApp extends StatelessWidget {
                 if (userSnap.connectionState ==
                     ConnectionState.waiting) {
                   return const Scaffold(
+                    backgroundColor: AppColors.fondoPrincipal,
                     body: Center(
                       child: CircularProgressIndicator(
-                          color: Colors.white),
+                          color: AppColors.acento),
                     ),
                   );
                 }
                 final usuario = userSnap.data;
-                if (usuario?.iglesiaId == null) {
+                final iglesiaId = usuario?.iglesiaId;
+                if (iglesiaId == null || iglesiaId.isEmpty) {
+                  FirestoreService.iglesiaIdActual = null;
                   return SetupScreen();
                 }
+                // Se establece SIEMPRE aquí, tanto en login activo como
+                // al reabrir la app con una sesión ya guardada, para
+                // que ninguna pantalla consulte Firestore con un
+                // iglesiaId desactualizado o vacío.
+                FirestoreService.iglesiaIdActual = iglesiaId;
                 return const HomeScreen();
               },
             );
           }
+          FirestoreService.iglesiaIdActual = null;
           return const LoginScreen();
         },
       ),

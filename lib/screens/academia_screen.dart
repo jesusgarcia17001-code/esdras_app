@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/academia_model.dart';
 import '../models/miembro_model.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
 
 class AcademiaScreen extends StatefulWidget {
   const AcademiaScreen({super.key});
@@ -17,13 +18,13 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: AppColors.fondoPrincipal,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F1117),
+        backgroundColor: AppColors.fondoPrincipal,
         title: const Text('Academia de Líderes',
             style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
+                color: AppColors.textoPrimario, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.textoPrimario),
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: Color(0xFFFBBF24)),
@@ -46,11 +47,11 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.school_outlined,
-                      color: Colors.white24, size: 64),
+                      color: AppColors.borde, size: 64),
                   const SizedBox(height: 16),
                   const Text('No hay niveles creados',
                       style: TextStyle(
-                          color: Colors.white38, fontSize: 15)),
+                          color: AppColors.textoTerciario, fontSize: 15)),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => _abrirFormularioNivel(context),
@@ -72,7 +73,7 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFFBBF24),
         onPressed: () => _abrirFormularioNivel(context),
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: AppColors.textoPrimario),
       ),
     );
   }
@@ -83,7 +84,7 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1D2E),
+          color: AppColors.fondoTarjeta,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -109,13 +110,13 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
                       children: [
                         Text(nivel.nombre,
                             style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textoPrimario,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600)),
                         if (nivel.descripcion.isNotEmpty)
                           Text(nivel.descripcion,
                               style: const TextStyle(
-                                  color: Colors.white38,
+                                  color: AppColors.textoTerciario,
                                   fontSize: 12),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
@@ -123,13 +124,13 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
                     ),
                   ),
                   const Icon(Icons.chevron_right,
-                      color: Colors.white24),
+                      color: AppColors.borde),
                 ],
               ),
             ),
             Container(
                 height: 0.5,
-                color: Colors.white10,
+                color: AppColors.fondoInput,
                 margin:
                     const EdgeInsets.symmetric(horizontal: 14)),
             Padding(
@@ -186,7 +187,7 @@ class _AcademiaScreenState extends State<AcademiaScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: AppColors.fondoTarjeta,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(24)),
@@ -229,18 +230,18 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: AppColors.fondoPrincipal,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F1117),
+        backgroundColor: AppColors.fondoPrincipal,
         title: Text(widget.nivel.nombre,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
+                color: AppColors.textoPrimario, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.textoPrimario),
         bottom: TabBar(
           controller: _tabCtrl,
           indicatorColor: const Color(0xFFFBBF24),
           labelColor: const Color(0xFFFBBF24),
-          unselectedLabelColor: Colors.white38,
+          unselectedLabelColor: AppColors.textoTerciario,
           tabs: const [
             Tab(text: 'Participantes'),
             Tab(text: 'Sesiones'),
@@ -257,9 +258,9 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFFBBF24),
         onPressed: () => _abrirFormularioSesion(),
-        icon: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add, color: AppColors.textoPrimario),
         label: const Text('Nueva sesión',
-            style: TextStyle(color: Colors.white)),
+            style: TextStyle(color: AppColors.textoPrimario)),
       ),
     );
   }
@@ -309,11 +310,11 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.calendar_today_outlined,
-                    color: Colors.white24, size: 48),
+                    color: AppColors.borde, size: 48),
                 const SizedBox(height: 12),
                 const Text('No hay sesiones registradas',
                     style: TextStyle(
-                        color: Colors.white38, fontSize: 14)),
+                        color: AppColors.textoTerciario, fontSize: 14)),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _abrirFormularioSesion,
@@ -347,7 +348,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D2E),
+        color: AppColors.fondoTarjeta,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -358,7 +359,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
               Expanded(
                 child: Text(s.tema,
                     style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textoPrimario,
                         fontSize: 14,
                         fontWeight: FontWeight.w500)),
               ),
@@ -378,7 +379,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
           const SizedBox(height: 6),
           Text(fecha,
               style: const TextStyle(
-                  color: Colors.white38, fontSize: 12)),
+                  color: AppColors.textoTerciario, fontSize: 12)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -444,7 +445,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D2E),
+        color: AppColors.fondoTarjeta,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -461,7 +462,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
           const SizedBox(width: 10),
           Text(nombre,
               style: const TextStyle(
-                  color: Colors.white, fontSize: 13)),
+                  color: AppColors.textoPrimario, fontSize: 13)),
         ],
       ),
     );
@@ -472,7 +473,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(texto,
           style:
-              const TextStyle(color: Colors.white24, fontSize: 12)),
+              const TextStyle(color: AppColors.borde, fontSize: 12)),
     );
   }
 
@@ -480,7 +481,7 @@ class _DetalleNivelScreenState extends State<DetalleNivelScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: AppColors.fondoTarjeta,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(24)),
@@ -535,64 +536,108 @@ class _FormularioNivelState extends State<FormularioNivel> {
     required Function(List<Miembro>) onConfirmar,
   }) {
     final temp = List<Miembro>.from(seleccionados);
+    var busqueda = '';
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1D2E),
-          title: Text(titulo,
-              style: const TextStyle(color: Colors.white)),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: _todosMiembros.isEmpty
-                ? const Center(
-                    child: Text('No hay miembros registrados',
-                        style: TextStyle(color: Colors.white38)))
-                : ListView.builder(
-                    itemCount: _todosMiembros.length,
-                    itemBuilder: (_, i) {
-                      final m = _todosMiembros[i];
-                      final sel =
-                          temp.any((s) => s.id == m.id);
-                      return CheckboxListTile(
-                        value: sel,
-                        activeColor: color,
-                        checkColor: Colors.white,
-                        title: Text(m.nombreCompleto,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13)),
-                        subtitle: Text(m.red,
-                            style: const TextStyle(
-                                color: Colors.white38,
-                                fontSize: 11)),
-                        onChanged: (v) => setS(() {
-                          if (v == true) {
-                            temp.add(m);
-                          } else {
-                            temp.removeWhere(
-                                (s) => s.id == m.id);
-                          }
-                        }),
-                      );
-                    },
+        builder: (ctx, setS) {
+          final filtrados = busqueda.isEmpty
+              ? _todosMiembros
+              : _todosMiembros
+                  .where((m) => m.nombreCompleto
+                      .toLowerCase()
+                      .contains(busqueda.toLowerCase()))
+                  .toList();
+          return AlertDialog(
+            backgroundColor: AppColors.fondoTarjeta,
+            title: Text(titulo,
+                style: const TextStyle(color: AppColors.textoPrimario)),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: Column(
+                children: [
+                  if (_todosMiembros.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TextField(
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por nombre...',
+                          hintStyle: const TextStyle(
+                              color: AppColors.textoTerciario, fontSize: 13),
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppColors.textoTerciario, size: 18),
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.textoPrimario.withValues(alpha: 0.05),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (v) => setS(() => busqueda = v),
+                      ),
+                    ),
+                  Expanded(
+                    child: _todosMiembros.isEmpty
+                        ? const Center(
+                            child: Text('No hay miembros registrados',
+                                style: TextStyle(color: AppColors.textoTerciario)))
+                        : filtrados.isEmpty
+                            ? const Center(
+                                child: Text('Sin resultados',
+                                    style:
+                                        TextStyle(color: AppColors.textoTerciario)))
+                            : ListView.builder(
+                                itemCount: filtrados.length,
+                                itemBuilder: (_, i) {
+                                  final m = filtrados[i];
+                                  final sel =
+                                      temp.any((s) => s.id == m.id);
+                                  return CheckboxListTile(
+                                    value: sel,
+                                    activeColor: color,
+                                    checkColor: AppColors.textoPrimario,
+                                    title: Text(m.nombreCompleto,
+                                        style: const TextStyle(
+                                            color: AppColors.textoPrimario,
+                                            fontSize: 13)),
+                                    subtitle: Text(m.redesTexto,
+                                        style: const TextStyle(
+                                            color: AppColors.textoTerciario,
+                                            fontSize: 11)),
+                                    onChanged: (v) => setS(() {
+                                      if (v == true) {
+                                        temp.add(m);
+                                      } else {
+                                        temp.removeWhere(
+                                            (s) => s.id == m.id);
+                                      }
+                                    }),
+                                  );
+                                },
+                              ),
                   ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar',
-                    style: TextStyle(color: Colors.white38))),
-            TextButton(
-                onPressed: () {
-                  onConfirmar(temp);
-                  Navigator.pop(ctx);
-                },
-                child: Text('Confirmar',
-                    style: TextStyle(color: color))),
-          ],
-        ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar',
+                      style: TextStyle(color: AppColors.textoTerciario))),
+              TextButton(
+                  onPressed: () {
+                    onConfirmar(temp);
+                    Navigator.pop(ctx);
+                  },
+                  child: Text('Confirmar',
+                      style: TextStyle(color: color))),
+            ],
+          );
+        },
       ),
     );
   }
@@ -613,7 +658,7 @@ class _FormularioNivelState extends State<FormularioNivel> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: AppColors.borde,
                     borderRadius: BorderRadius.circular(2)),
               ),
             ),
@@ -621,7 +666,7 @@ class _FormularioNivelState extends State<FormularioNivel> {
             Text(
               widget.nivel == null ? 'Nuevo nivel' : 'Editar nivel',
               style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textoPrimario,
                   fontSize: 18,
                   fontWeight: FontWeight.bold),
             ),
@@ -670,7 +715,7 @@ class _FormularioNivelState extends State<FormularioNivel> {
                 ),
                 child: _cargando
                     ? const CircularProgressIndicator(
-                        color: Colors.white)
+                        color: AppColors.textoPrimario)
                     : Text(
                         widget.nivel == null
                             ? 'Guardar nivel'
@@ -678,7 +723,7 @@ class _FormularioNivelState extends State<FormularioNivel> {
                         style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white)),
+                            color: AppColors.textoPrimario)),
               ),
             ),
           ],
@@ -702,7 +747,7 @@ class _FormularioNivelState extends State<FormularioNivel> {
           children: [
             Text(titulo,
                 style: const TextStyle(
-                    color: Colors.white38,
+                    color: AppColors.textoTerciario,
                     fontSize: 11,
                     letterSpacing: 0.8)),
             TextButton.icon(
@@ -717,14 +762,14 @@ class _FormularioNivelState extends State<FormularioNivel> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF0F1117),
+              color: AppColors.fondoPrincipal,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: AppColors.fondoInput),
             ),
             child: const Center(
               child: Text('Ninguno seleccionado',
                   style: TextStyle(
-                      color: Colors.white24, fontSize: 12)),
+                      color: AppColors.borde, fontSize: 12)),
             ),
           )
         else
@@ -757,20 +802,20 @@ class _FormularioNivelState extends State<FormularioNivel> {
       children: [
         Text(label,
             style: const TextStyle(
-                color: Colors.white38,
+                color: AppColors.textoTerciario,
                 fontSize: 11,
                 letterSpacing: 0.8)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F1117),
+            color: AppColors.fondoPrincipal,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: AppColors.fondoInput),
           ),
           child: TextField(
             controller: ctrl,
             style: const TextStyle(
-                color: Colors.white, fontSize: 14),
+                color: AppColors.textoPrimario, fontSize: 14),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -853,14 +898,14 @@ class _FormularioSesionState extends State<FormularioSesion> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: AppColors.borde,
                     borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const SizedBox(height: 20),
             const Text('Nueva sesión',
                 style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textoPrimario,
                     fontSize: 18,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
@@ -868,20 +913,20 @@ class _FormularioSesionState extends State<FormularioSesion> {
             // Tema
             const Text('TEMA DE LA CLASE',
                 style: TextStyle(
-                    color: Colors.white38,
+                    color: AppColors.textoTerciario,
                     fontSize: 11,
                     letterSpacing: 0.8)),
             const SizedBox(height: 6),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF0F1117),
+                color: AppColors.fondoPrincipal,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: AppColors.fondoInput),
               ),
               child: TextField(
                 controller: _tema,
                 style: const TextStyle(
-                    color: Colors.white, fontSize: 14),
+                    color: AppColors.textoPrimario, fontSize: 14),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(
@@ -894,7 +939,7 @@ class _FormularioSesionState extends State<FormularioSesion> {
             // Fecha
             const Text('FECHA',
                 style: TextStyle(
-                    color: Colors.white38,
+                    color: AppColors.textoTerciario,
                     fontSize: 11,
                     letterSpacing: 0.8)),
             const SizedBox(height: 6),
@@ -919,9 +964,9 @@ class _FormularioSesionState extends State<FormularioSesion> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F1117),
+                  color: AppColors.fondoPrincipal,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(color: AppColors.fondoInput),
                 ),
                 child: Row(
                   children: [
@@ -931,7 +976,7 @@ class _FormularioSesionState extends State<FormularioSesion> {
                     Text(
                       DateFormat('dd/MM/yyyy').format(_fecha),
                       style: const TextStyle(
-                          color: Colors.white, fontSize: 14),
+                          color: AppColors.textoPrimario, fontSize: 14),
                     ),
                   ],
                 ),
@@ -944,7 +989,7 @@ class _FormularioSesionState extends State<FormularioSesion> {
               children: [
                 const Text('ASISTENCIA',
                     style: TextStyle(
-                        color: Colors.white38,
+                        color: AppColors.textoTerciario,
                         fontSize: 11,
                         letterSpacing: 0.8)),
                 const Spacer(),
@@ -965,7 +1010,7 @@ class _FormularioSesionState extends State<FormularioSesion> {
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Text('No hay alumnos en este nivel',
                     style: TextStyle(
-                        color: Colors.white24, fontSize: 12)),
+                        color: AppColors.borde, fontSize: 12)),
               )
             else
               ...widget.nivel.alumnosIds
@@ -979,16 +1024,16 @@ class _FormularioSesionState extends State<FormularioSesion> {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F1117),
+                    color: AppColors.fondoPrincipal,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: CheckboxListTile(
                     value: presente,
                     activeColor: const Color(0xFF34D399),
-                    checkColor: Colors.white,
+                    checkColor: AppColors.textoPrimario,
                     title: Text(nombre,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 13)),
+                            color: AppColors.textoPrimario, fontSize: 13)),
                     secondary: Icon(
                       presente
                           ? Icons.check_circle
@@ -1018,12 +1063,12 @@ class _FormularioSesionState extends State<FormularioSesion> {
                 ),
                 child: _cargando
                     ? const CircularProgressIndicator(
-                        color: Colors.white)
+                        color: AppColors.textoPrimario)
                     : const Text('Guardar sesión',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white)),
+                            color: AppColors.textoPrimario)),
               ),
             ),
           ],

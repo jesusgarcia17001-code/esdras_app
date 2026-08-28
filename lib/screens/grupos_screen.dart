@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/grupo_model.dart';
 import '../models/miembro_model.dart';
+import '../models/red_model.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
+import 'mapa_grupos_screen.dart';
 
 class GruposScreen extends StatefulWidget {
   const GruposScreen({super.key});
@@ -22,6 +24,15 @@ class _GruposScreenState extends State<GruposScreen> {
         backgroundColor: AppColors.fondoPrincipal,
         title: const Text('Grupos pequeños'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Ver mapa',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const MapaGruposScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _abrirFormulario(context),
@@ -434,16 +445,23 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
   final _hora = TextEditingController();
   final _liderLineaNombre = TextEditingController();
   String _estado = 'Activo';
+  String? _redId;
+  String _redNombre = '';
+  List<Red> _redesDisponibles = [];
+  double? _latitud;
+  double? _longitud;
   bool _cargando = false;
   List<Miembro> _todosMiembros = [];
   List<Miembro> _lideresLinea = [];
   List<Miembro> _lideresCedula = [];
   List<Miembro> _miembros = [];
+  bool _seleccionesCargadas = false;
 
   @override
   void initState() {
     super.initState();
     _cargarMiembros();
+    _cargarRedes();
     if (widget.grupo != null) {
       final g = widget.grupo!;
       _nombre.text = g.nombre;
@@ -452,12 +470,40 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
       _liderLineaNombre.text = g.lideresLineaNombres.isNotEmpty
     ? g.lideresLineaNombres.first : '';
       _estado = g.estado;
+      _redId = g.redId;
+      _redNombre = g.redNombre ?? '';
+      _latitud = g.latitud;
+      _longitud = g.longitud;
     }
   }
 
+  Future<void> _cargarRedes() async {
+    _service.getRedes().listen((lista) {
+      setState(() => _redesDisponibles = lista);
+    });
+  }
+
+
   Future<void> _cargarMiembros() async {
     _service.getMiembros().listen((lista) {
-      setState(() => _todosMiembros = lista);
+      setState(() {
+        _todosMiembros = lista;
+        // Al editar un grupo, se preseleccionan los líderes y miembros
+        // que ya tenía asignados (solo la primera vez que carga la lista).
+        final g = widget.grupo;
+        if (!_seleccionesCargadas && g != null) {
+          _lideresLinea = lista
+              .where((m) => g.lideresLineaIds.contains(m.id))
+              .toList();
+          _lideresCedula = lista
+              .where((m) => g.lideresCedulaIds.contains(m.id))
+              .toList();
+          _miembros = lista
+              .where((m) => g.miembrosIds.contains(m.id))
+              .toList();
+          _seleccionesCargadas = true;
+        }
+      });
     });
   }
 
@@ -466,82 +512,207 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
     required List<Miembro> seleccionados,
     required Function(List<Miembro>) onConfirmar,
     String? filtroRol,
+    List<String>? soloIds,
   }) {
-    final disponibles = filtroRol != null
+    var disponibles = filtroRol != null
         ? _todosMiembros
             .where((m) => m.rolLider == filtroRol)
             .toList()
         : _todosMiembros;
+    if (soloIds != null) {
+      disponibles =
+          disponibles.where((m) => soloIds.contains(m.id)).toList();
+    }
     final tempSel = List<Miembro>.from(seleccionados);
+    var busqueda = '';
 
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          backgroundColor: AppColors.fondoSecundario,
-          title: Text(titulo,
-              style: const TextStyle(
-                  color: AppColors.textoPrimario)),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: disponibles.isEmpty
-                ? Center(
-                    child: Text(
-                      filtroRol != null
-                          ? 'No hay líderes con ese rol'
-                          : 'No hay miembros registrados',
-                      style: const TextStyle(
-                          color: AppColors.textoSecundario),
-                      textAlign: TextAlign.center,
+        builder: (ctx, setS) {
+          final filtrados = busqueda.isEmpty
+              ? disponibles
+              : disponibles
+                  .where((m) => m.nombreCompleto
+                      .toLowerCase()
+                      .contains(busqueda.toLowerCase()))
+                  .toList();
+          return AlertDialog(
+            backgroundColor: AppColors.fondoSecundario,
+            title: Text(titulo,
+                style: const TextStyle(
+                    color: AppColors.textoPrimario)),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: Column(
+                children: [
+                  if (disponibles.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TextField(
+                        autofocus: false,
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario,
+                            fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por nombre...',
+                          hintStyle: const TextStyle(
+                              color: AppColors.textoSecundario,
+                              fontSize: 13),
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppColors.textoSecundario,
+                              size: 18),
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.fondoInput,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (v) => setS(() => busqueda = v),
+                      ),
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: disponibles.length,
-                    itemBuilder: (_, i) {
-                      final m = disponibles[i];
-                      final sel =
-                          tempSel.any((s) => s.id == m.id);
-                      return CheckboxListTile(
-                        value: sel,
-                        activeColor: AppColors.textoPrimario,
-                        checkColor: AppColors.fondoPrincipal,
-                        title: Text(m.nombreCompleto,
-                            style: const TextStyle(
-                                color: AppColors.textoPrimario,
-                                fontSize: 13)),
-                        subtitle: Text(m.red,
-                            style: const TextStyle(
-                                color: AppColors.textoSecundario,
-                                fontSize: 11)),
-                        onChanged: (v) => setS(() {
-                          if (v == true) {
-                            tempSel.add(m);
-                          } else {
-                            tempSel.removeWhere(
-                                (s) => s.id == m.id);
-                          }
-                        }),
-                      );
-                    },
+                  Expanded(
+                    child: disponibles.isEmpty
+                        ? Center(
+                            child: Text(
+                              soloIds != null
+                                  ? 'Esta red no tiene líderes de línea registrados'
+                                  : (filtroRol != null
+                                      ? 'No hay líderes con ese rol'
+                                      : 'No hay miembros registrados'),
+                              style: const TextStyle(
+                                  color: AppColors.textoSecundario),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : filtrados.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Sin resultados',
+                                  style: TextStyle(
+                                      color: AppColors.textoSecundario),
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: filtrados.length,
+                                itemBuilder: (_, i) {
+                                  final m = filtrados[i];
+                                  final sel = tempSel
+                                      .any((s) => s.id == m.id);
+                                  return CheckboxListTile(
+                                    value: sel,
+                                    activeColor:
+                                        AppColors.textoPrimario,
+                                    checkColor:
+                                        AppColors.fondoPrincipal,
+                                    title: Text(m.nombreCompleto,
+                                        style: const TextStyle(
+                                            color:
+                                                AppColors.textoPrimario,
+                                            fontSize: 13)),
+                                    subtitle: Text(m.redesTexto,
+                                        style: const TextStyle(
+                                            color: AppColors
+                                                .textoSecundario,
+                                            fontSize: 11)),
+                                    onChanged: (v) => setS(() {
+                                      if (v == true) {
+                                        tempSel.add(m);
+                                      } else {
+                                        tempSel.removeWhere(
+                                            (s) => s.id == m.id);
+                                      }
+                                    }),
+                                  );
+                                },
+                              ),
                   ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar',
-                    style: TextStyle(
-                        color: AppColors.textoSecundario))),
-            TextButton(
-                onPressed: () {
-                  onConfirmar(tempSel);
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Confirmar',
-                    style: TextStyle(
-                        color: AppColors.textoPrimario))),
-          ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar',
+                      style: TextStyle(
+                          color: AppColors.textoSecundario))),
+              TextButton(
+                  onPressed: () {
+                    onConfirmar(tempSel);
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Confirmar',
+                      style: TextStyle(
+                          color: AppColors.textoPrimario))),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _seleccionarRed() {
+    if (_redesDisponibles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'No hay redes creadas todavía. Crea una red primero.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.fondoSecundario,
+        title: const Text('Seleccionar red',
+            style: TextStyle(color: AppColors.textoPrimario)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: _redesDisponibles.length,
+            itemBuilder: (_, i) {
+              final r = _redesDisponibles[i];
+              return ListTile(
+                leading: Text(r.icono,
+                    style: const TextStyle(fontSize: 20)),
+                title: Text(r.nombre,
+                    style: const TextStyle(
+                        color: AppColors.textoPrimario, fontSize: 14)),
+                subtitle: Text('${r.lideresIds.length} líderes de línea',
+                    style: const TextStyle(
+                        color: AppColors.textoSecundario, fontSize: 11)),
+                onTap: () {
+                  setState(() {
+                    // Si cambia de red, se limpian los líderes de línea
+                    // elegidos que no pertenezcan a la nueva red.
+                    if (_redId != r.id) {
+                      _lideresLinea = _lideresLinea
+                          .where((m) => r.lideresIds.contains(m.id))
+                          .toList();
+                    }
+                    _redId = r.id;
+                    _redNombre = r.nombre;
+                  });
+                  Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.textoSecundario)),
+          ),
+        ],
       ),
     );
   }
@@ -579,7 +750,87 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
             const SizedBox(height: 20),
             _campo('NOMBRE DEL GRUPO', _nombre),
             _campo('DIRECCIÓN / BARRIO', _direccion),
+            GestureDetector(
+              onTap: _marcarUbicacion,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.fondoInput,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borde),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _latitud != null
+                          ? Icons.location_on
+                          : Icons.location_on_outlined,
+                      color: _latitud != null
+                          ? AppColors.exito
+                          : AppColors.textoSecundario,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _latitud != null
+                            ? 'Ubicación marcada en el mapa'
+                            : 'Marcar ubicación en el mapa (opcional)',
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario, fontSize: 13),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        color: AppColors.textoSecundario, size: 18),
+                  ],
+                ),
+              ),
+            ),
             _campo('HORA DE REUNIÓN (ej: 7:00 PM)', _hora),
+
+            _labelSeccion('RED'),
+            GestureDetector(
+              onTap: _seleccionarRed,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.fondoInput,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _redId != null
+                        ? AppColors.exito
+                        : AppColors.borde,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.hub_outlined,
+                      color: _redId != null
+                          ? AppColors.exito
+                          : AppColors.textoSecundario,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _redId != null
+                            ? _redNombre
+                            : 'Selecciona la red a la que pertenece',
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario, fontSize: 13),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        color: AppColors.textoSecundario, size: 18),
+                  ],
+                ),
+              ),
+            ),
 
             _labelSeccion('ESTADO'),
             Wrap(
@@ -619,13 +870,27 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
               titulo: 'LÍDERES DE LÍNEA',
               seleccionados: _lideresLinea,
               icono: Icons.supervisor_account,
-              onTap: () => _seleccionarPersonas(
-                titulo: 'Seleccionar líderes de línea',
-                seleccionados: _lideresLinea,
-                filtroRol: 'Líder de línea',
-                onConfirmar: (lista) =>
-                    setState(() => _lideresLinea = lista),
-              ),
+              onTap: () {
+                if (_redId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Primero selecciona la red'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+                final red = _redesDisponibles
+                    .firstWhere((r) => r.id == _redId);
+                _seleccionarPersonas(
+                  titulo: 'Líderes de línea de $_redNombre',
+                  seleccionados: _lideresLinea,
+                  soloIds: red.lideresIds,
+                  onConfirmar: (lista) =>
+                      setState(() => _lideresLinea = lista),
+                );
+              },
             ),
             const SizedBox(height: 12),
 
@@ -664,7 +929,7 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
                     ? const SizedBox(
                         width: 20, height: 20,
                         child: CircularProgressIndicator(
-                            color: AppColors.fondoPrincipal,
+                            color: AppColors.acentoTexto,
                             strokeWidth: 2))
                     : Text(
                         widget.grupo == null
@@ -793,6 +1058,24 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
     );
   }
 
+  Future<void> _marcarUbicacion() async {
+    final resultado = await Navigator.push<Map<String, double>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectorUbicacionMapa(
+          latitudInicial: _latitud,
+          longitudInicial: _longitud,
+        ),
+      ),
+    );
+    if (resultado != null) {
+      setState(() {
+        _latitud = resultado['lat'];
+        _longitud = resultado['lng'];
+      });
+    }
+  }
+
   Future<void> _guardar() async {
     if (_nombre.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -808,8 +1091,12 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
     final grupo = Grupo(
       nombre: _nombre.text.trim(),
       direccion: _direccion.text.trim(),
+      latitud: _latitud,
+      longitud: _longitud,
       hora: _hora.text.trim(),
       estado: _estado,
+      redId: _redId,
+      redNombre: _redNombre.isEmpty ? null : _redNombre,
       lideresLineaIds:
           _lideresLinea.map((m) => m.id!).toList(),
       lideresLineaNombres:

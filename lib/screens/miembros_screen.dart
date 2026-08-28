@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/miembro_model.dart';
+import '../models/red_model.dart';
 import '../services/firestore_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
@@ -22,11 +23,75 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
   String _filtroGenero = 'Todos';
   String _busqueda = '';
   final _buscadorCtrl = TextEditingController();
+  bool _importando = false;
+  List<Red> _redesDisponibles = [];
 
-  final List<String> _redes = [
-    'Todos', 'Jóvenes', 'Niños', 'Mujeres',
-    'Hombres', 'Adultos mayores'
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _service.getRedes().listen((lista) {
+      setState(() => _redesDisponibles = lista);
+    });
+  }
+
+  Future<void> _confirmarImportacion() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.fondoTarjeta,
+        title: const Text('Importar miembros',
+            style: TextStyle(color: AppColors.textoPrimario)),
+        content: const Text(
+          'Se van a subir los miembros del archivo base_sinai_perfiles.json '
+          'a esta iglesia. Si un miembro ya fue importado antes, se '
+          'actualiza en vez de duplicarse. ¿Continuar?',
+          style: TextStyle(color: AppColors.textoSecundario),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Importar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _importando = true);
+    try {
+      final cantidad = await _service.importarMiembrosDesdeJson();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$cantidad miembros importados correctamente'),
+            backgroundColor: AppColors.exito,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al importar: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _importando = false);
+    }
+  }
+
+  List<String> get _redes => [
+        'Todos',
+        ..._redesDisponibles.map((r) => r.nombre),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +101,18 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
         backgroundColor: AppColors.fondoPrincipal,
         title: const Text('Miembros'),
         actions: [
+          IconButton(
+            icon: _importando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.cloud_upload_outlined),
+            tooltip: 'Importar miembros desde archivo',
+            onPressed: _importando ? null : _confirmarImportacion,
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _mostrarFiltros,
@@ -76,45 +153,6 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
                 onChanged: (v) =>
                     setState(() => _busqueda = v.toLowerCase()),
               ),
-            ),
-          ),
-          SizedBox(
-            height: 40,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _redes.length,
-              itemBuilder: (_, i) {
-                final sel = _filtroRed == _redes[i];
-                return GestureDetector(
-                  onTap: () =>
-                      setState(() => _filtroRed = _redes[i]),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: sel
-                          ? AppColors.textoPrimario
-                          : AppColors.fondoTarjeta,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: sel
-                              ? AppColors.textoPrimario
-                              : AppColors.borde),
-                    ),
-                    child: Center(
-                      child: Text(_redes[i],
-                          style: TextStyle(
-                              color: sel
-                                  ? AppColors.fondoPrincipal
-                                  : AppColors.textoSecundario,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
-                    ),
-                  ),
-                );
-              },
             ),
           ),
           const SizedBox(height: 8),
@@ -212,8 +250,10 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
 
   List<Miembro> _filtrar(List<Miembro> todos) {
     return todos.where((m) {
-      if (_filtroRed != 'Todos' && m.red != _filtroRed)
+      if (_filtroRed != 'Todos' &&
+          !m.redesNombres.contains(_filtroRed)) {
         return false;
+      }
       if (_filtroEstado != 'Todos' &&
           m.estado != _filtroEstado) return false;
       if (_filtroBautizado == 'Bautizados' && !m.bautizado)
@@ -238,6 +278,7 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
   void _mostrarFiltros() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.fondoSecundario,
       shape: const RoundedRectangleBorder(
         borderRadius:
@@ -245,8 +286,19 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
       ),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  MediaQuery.of(ctx).size.height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -288,6 +340,14 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
                 (v) => setS(() =>
                     setState(() => _filtroGenero = v)),
               ),
+              const SizedBox(height: 12),
+              _labelFiltro('RED'),
+              _chipsFiltro(
+                _redes,
+                _filtroRed,
+                (v) => setS(() =>
+                    setState(() => _filtroRed = v)),
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -309,6 +369,8 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
                 ),
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),
@@ -416,7 +478,11 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
                                 fontSize: 11)),
                         const SizedBox(width: 8),
                       ],
-                      _badge(m.red),
+                      _badge(m.redesNombres.isEmpty
+                          ? 'Sin red'
+                          : m.redesNombres.length == 1
+                              ? m.redesNombres.first
+                              : '${m.redesNombres.first} +${m.redesNombres.length - 1}'),
                       if (m.bautizado) ...[
                         const SizedBox(width: 6),
                         _badge('✓ Bautizado',
@@ -528,6 +594,55 @@ class PerfilMiembroScreen extends StatelessWidget {
               );
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                color: AppColors.error),
+            onPressed: () async {
+              final confirmar = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.fondoTarjeta,
+                  title: const Text('Eliminar miembro',
+                      style: TextStyle(
+                          color: AppColors.textoPrimario)),
+                  content: Text(
+                    '¿Seguro que quieres eliminar a '
+                    '${miembro.nombreCompleto}? Esta acción no se '
+                    'puede deshacer.',
+                    style: const TextStyle(
+                        color: AppColors.textoSecundario),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.pop(ctx, false),
+                      child: const Text('Cancelar'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Eliminar',
+                          style: TextStyle(
+                              color: AppColors.error)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmar == true && context.mounted) {
+                await FirestoreService()
+                    .eliminarMiembro(miembro.id!);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Miembro eliminado'),
+                      backgroundColor: AppColors.exito,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -575,7 +690,10 @@ class PerfilMiembroScreen extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     children: [
-                      _badgePerfil(miembro.red),
+                      ...miembro.redesNombres.isEmpty
+                          ? [_badgePerfil('Sin red')]
+                          : miembro.redesNombres
+                              .map((r) => _badgePerfil(r)),
                       if (miembro.bautizado)
                         _badgePerfil('✓ Bautizado',
                             color: AppColors.exito),
@@ -610,7 +728,7 @@ class PerfilMiembroScreen extends StatelessWidget {
                 _fila('Dirección', miembro.direccion),
             ]),
             _seccion('INFORMACIÓN ESPIRITUAL', [
-              _fila('Red', miembro.red),
+              _fila('Redes', miembro.redesTexto),
               _fila('Bautizado',
                   miembro.bautizado ? 'Sí' : 'No'),
               if (miembro.ministerios.isNotEmpty)
@@ -777,9 +895,9 @@ class _FormularioMiembroScreenState
   DateTime _fechaIngreso = DateTime.now();
   List<String> _ministerios = [];
 
-  // Red desde Firestore
-  String? _redId;
-  String _redNombre = '';
+  // Redes desde Firestore (multi-selección)
+  List<String> _redesIdsSel = [];
+  List<String> _redesSel = [];
   List<Map<String, dynamic>> _redesDisponibles = [];
 
   // Grupo desde Firestore
@@ -827,7 +945,8 @@ class _FormularioMiembroScreenState
       _fechaIngreso = m.fechaIngreso;
       _ministerios = List.from(m.ministerios);
       _fotoUrlExistente = m.fotoUrl;
-      _redNombre = m.red;
+      _redesIdsSel = List.from(m.redesIds);
+      _redesSel = List.from(m.redesNombres);
       _grupoId = m.grupoId;
       _grupoNombre = m.grupoNombre ?? '';
     }
@@ -1356,22 +1475,49 @@ class _FormularioMiembroScreenState
                     size: 16),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    _redNombre.isEmpty
-                        ? 'Seleccionar red'
-                        : _redNombre,
-                    style: TextStyle(
-                        color: _redNombre.isEmpty
-                            ? AppColors.textoSecundario
-                            : AppColors.textoPrimario,
-                        fontSize: 14),
-                  ),
+                  child: _redesSel.isEmpty
+                      ? const Text(
+                          'Seleccionar redes',
+                          style: TextStyle(
+                              color: AppColors.textoSecundario,
+                              fontSize: 14),
+                        )
+                      : Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _redesSel
+                              .map((nombre) => Container(
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                            horizontal: 10,
+                                            vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors
+                                          .acentoSuave,
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(20),
+                                    ),
+                                    child: Text(
+                                      nombre,
+                                      style: const TextStyle(
+                                          color: AppColors
+                                              .acento,
+                                          fontSize: 12,
+                                          fontWeight:
+                                              FontWeight
+                                                  .w600),
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
                 ),
-                if (_redNombre.isNotEmpty)
+                if (_redesSel.isNotEmpty)
                   GestureDetector(
                     onTap: () => setState(() {
-                      _redId = null;
-                      _redNombre = '';
+                      _redesIdsSel.clear();
+                      _redesSel.clear();
                     }),
                     child: const Icon(Icons.close,
                         color: AppColors.textoSecundario,
@@ -1459,7 +1605,8 @@ class _FormularioMiembroScreenState
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => Padding(
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1478,7 +1625,7 @@ class _FormularioMiembroScreenState
               mainAxisAlignment:
                   MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Seleccionar red',
+                const Text('Seleccionar redes',
                     style: TextStyle(
                         color: AppColors.textoPrimario,
                         fontSize: 18,
@@ -1505,6 +1652,11 @@ class _FormularioMiembroScreenState
                 ),
               ],
             ),
+            const Text(
+                'Un miembro puede pertenecer a varias redes',
+                style: TextStyle(
+                    color: AppColors.textoSecundario,
+                    fontSize: 12)),
             const SizedBox(height: 12),
             if (_redesDisponibles.isEmpty)
               Container(
@@ -1532,9 +1684,9 @@ class _FormularioMiembroScreenState
                   ],
                 ),
               )
-            else
+            else ...[
               ...(_redesDisponibles.map((r) {
-                final sel = _redNombre == r['nombre'];
+                final sel = _redesIdsSel.contains(r['id']);
                 final emoji =
                     r['tipo'] == 'Hombres' ? '👨' :
                     r['tipo'] == 'Mujeres' ? '👩' :
@@ -1543,11 +1695,17 @@ class _FormularioMiembroScreenState
                     r['tipo'] == 'Adultos mayores' ? '👴' : '👥';
                 return GestureDetector(
                   onTap: () {
-                    setState(() {
-                      _redId = r['id'];
-                      _redNombre = r['nombre'];
+                    setS(() {
+                      setState(() {
+                        if (sel) {
+                          _redesIdsSel.remove(r['id']);
+                          _redesSel.remove(r['nombre']);
+                        } else {
+                          _redesIdsSel.add(r['id']);
+                          _redesSel.add(r['nombre']);
+                        }
+                      });
                     });
-                    Navigator.pop(context);
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -1588,16 +1746,32 @@ class _FormularioMiembroScreenState
                             ],
                           ),
                         ),
-                        if (sel)
-                          const Icon(Icons.check,
-                              color: AppColors.textoPrimario,
-                              size: 18),
+                        Icon(
+                          sel
+                              ? Icons.check_box
+                              : Icons
+                                  .check_box_outline_blank,
+                          color: sel
+                              ? AppColors.acento
+                              : AppColors.textoTerciario,
+                          size: 20,
+                        ),
                       ],
                     ),
                   ),
                 );
               })),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Confirmar'),
+                ),
+              ),
+            ],
           ],
+        ),
         ),
       ),
     );
@@ -1788,7 +1962,8 @@ class _FormularioMiembroScreenState
       genero: _genero,
       estadoCivil: _estadoCivil,
       bautizado: _bautizado,
-      red: _redNombre.isEmpty ? 'Sin red' : _redNombre,
+      redesIds: _redesIdsSel,
+      redesNombres: _redesSel,
       ministerios: _ministerios,
       rolIglesia: _esLider ? _rolLider : '',
       trabaja: _trabaja,

@@ -2,13 +2,15 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
+import 'firestore_service.dart';
 
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ImagePicker _picker = ImagePicker();
 
-  String get iglesiaId => _auth.currentUser!.uid;
+  String get iglesiaId =>
+      FirestoreService.iglesiaIdActual ?? _auth.currentUser!.uid;
 
   // Seleccionar foto de galería
   Future<File?> seleccionarFoto() async {

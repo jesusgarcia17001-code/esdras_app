@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/iglesia_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'setup_screen.dart';
@@ -37,10 +38,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _navegarSegunEstado() async {
     final usuario = await _iglesiaService.getUsuario();
     if (!mounted) return;
-    if (usuario?.iglesiaId == null) {
+    final iglesiaId = usuario?.iglesiaId;
+    if (iglesiaId == null || iglesiaId.isEmpty) {
+      FirestoreService.iglesiaIdActual = null;
       Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (_) => SetupScreen()));
     } else {
+      FirestoreService.iglesiaIdActual = iglesiaId;
       Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (_) => const HomeScreen()));
     }

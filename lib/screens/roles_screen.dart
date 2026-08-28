@@ -41,7 +41,7 @@ class _RolesScreenState extends State<RolesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1117),
+      backgroundColor: AppColors.fondoPrincipal,
 appBar: AppBar(
   backgroundColor: AppColors.fondoPrincipal,
   title: const Text('Roles y permisos'),
@@ -90,7 +90,7 @@ appBar: AppBar(
           ? FloatingActionButton(
               backgroundColor: const Color(0xFF6B5EFF),
               onPressed: () => _abrirFormularioRol(),
-              child: const Icon(Icons.add, color: Colors.white),
+              child: const Icon(Icons.add, color: AppColors.textoPrimario),
             )
           : null,
     );
@@ -110,7 +110,7 @@ appBar: AppBar(
           return const Center(
             child: Text('No hay miembros en la iglesia',
                 style: TextStyle(
-                    color: Colors.white38, fontSize: 14)),
+                    color: AppColors.textoTerciario, fontSize: 14)),
           );
         }
         return ListView.builder(
@@ -143,7 +143,7 @@ appBar: AppBar(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D2E),
+        color: AppColors.fondoTarjeta,
         borderRadius: BorderRadius.circular(14),
         border: esMiActual
             ? Border.all(
@@ -186,7 +186,7 @@ appBar: AppBar(
                   children: [
                     Text(u.nombreCompleto,
                         style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textoPrimario,
                             fontSize: 14,
                             fontWeight: FontWeight.w500)),
                     if (esMiActual) ...[
@@ -226,7 +226,7 @@ appBar: AppBar(
           if (puedoGestionar && !esMiActual)
             IconButton(
               icon: const Icon(Icons.manage_accounts,
-                  color: Colors.white38),
+                  color: AppColors.textoTerciario),
               onPressed: () =>
                   _cambiarRolUsuario(u),
             ),
@@ -262,7 +262,7 @@ appBar: AppBar(
       4: const Color(0xFF60A5FA),
       5: const Color(0xFFF97336),
     };
-    final color = colores[rol.nivel] ?? Colors.white38;
+    final color = colores[rol.nivel] ?? AppColors.textoTerciario;
     final puedeEditar = _usuarioActual?.tienePermiso(
             Permiso.controlTotal) ??
         false;
@@ -270,7 +270,7 @@ appBar: AppBar(
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D2E),
+        color: AppColors.fondoTarjeta,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -304,7 +304,7 @@ appBar: AppBar(
                         children: [
                           Text(rol.nombre,
                               style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textoPrimario,
                                   fontSize: 14,
                                   fontWeight:
                                       FontWeight.w600)),
@@ -316,13 +316,13 @@ appBar: AppBar(
                                       horizontal: 6,
                                       vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.white10,
+                                color: AppColors.fondoInput,
                                 borderRadius:
                                     BorderRadius.circular(6),
                               ),
                               child: const Text('Sistema',
                                   style: TextStyle(
-                                      color: Colors.white38,
+                                      color: AppColors.textoTerciario,
                                       fontSize: 9)),
                             ),
                           ],
@@ -330,7 +330,7 @@ appBar: AppBar(
                       ),
                       Text(rol.descripcion,
                           style: const TextStyle(
-                              color: Colors.white38,
+                              color: AppColors.textoTerciario,
                               fontSize: 12)),
                     ],
                   ),
@@ -338,14 +338,14 @@ appBar: AppBar(
                 if (puedeEditar && rol.esEditable)
                   PopupMenuButton(
                     icon: const Icon(Icons.more_vert,
-                        color: Colors.white38, size: 20),
+                        color: AppColors.textoTerciario, size: 20),
                     color: AppColors.fondoPrincipal,
                     itemBuilder: (_) => [
                       const PopupMenuItem(
                           value: 'editar',
                           child: Text('Editar',
                               style: TextStyle(
-                                  color: Colors.white))),
+                                  color: AppColors.textoPrimario))),
                       const PopupMenuItem(
                           value: 'eliminar',
                           child: Text('Eliminar',
@@ -364,7 +364,7 @@ appBar: AppBar(
           ),
           Container(
               height: 0.5,
-              color: Colors.white10,
+              color: AppColors.fondoInput,
               margin:
                   const EdgeInsets.symmetric(horizontal: 14)),
           Padding(
@@ -381,14 +381,14 @@ appBar: AppBar(
                     color: esTotal
                         ? const Color(0xFF6B5EFF)
                             .withOpacity(0.2)
-                        : Colors.white10,
+                        : AppColors.fondoInput,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(Permiso.nombre(p),
                       style: TextStyle(
                           color: esTotal
                               ? const Color(0xFF6B5EFF)
-                              : Colors.white54,
+                              : AppColors.textoSecundario,
                           fontSize: 10)),
                 );
               }).toList(),
@@ -402,7 +402,7 @@ appBar: AppBar(
   void _cambiarRolUsuario(UsuarioIglesia usuario) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: AppColors.fondoTarjeta,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(24)),
@@ -426,7 +426,7 @@ appBar: AppBar(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: AppColors.borde,
                         borderRadius:
                             BorderRadius.circular(2)),
                   ),
@@ -435,7 +435,7 @@ appBar: AppBar(
                 Text(
                   'Cambiar rol de ${usuario.nombreCompleto}',
                   style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textoPrimario,
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
                 ),
@@ -478,15 +478,15 @@ appBar: AppBar(
                         color: esActual
                             ? const Color(0xFF6B5EFF)
                                 .withOpacity(0.2)
-                            : const Color(0xFF0F1117),
+                            : AppColors.fondoPrincipal,
                         borderRadius:
                             BorderRadius.circular(12),
                         border: Border.all(
                           color: esActual
                               ? const Color(0xFF6B5EFF)
                               : puedeAsignar
-                                  ? Colors.white10
-                                  : Colors.white10
+                                  ? AppColors.fondoInput
+                                  : AppColors.fondoInput
                                       .withOpacity(0.3),
                         ),
                       ),
@@ -496,8 +496,8 @@ appBar: AppBar(
                             child: Text(rol.nombre,
                                 style: TextStyle(
                                     color: puedeAsignar
-                                        ? Colors.white
-                                        : Colors.white24,
+                                        ? AppColors.textoPrimario
+                                        : AppColors.borde,
                                     fontSize: 13)),
                           ),
                           if (esActual)
@@ -506,7 +506,7 @@ appBar: AppBar(
                                 size: 16),
                           if (!puedeAsignar)
                             const Icon(Icons.lock_outline,
-                                color: Colors.white24,
+                                color: AppColors.borde,
                                 size: 14),
                         ],
                       ),
@@ -525,7 +525,7 @@ appBar: AppBar(
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: AppColors.fondoTarjeta,
       shape: const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(top: Radius.circular(24)),
@@ -551,17 +551,17 @@ appBar: AppBar(
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1D2E),
+        backgroundColor: AppColors.fondoTarjeta,
         title: const Text('Eliminar rol',
-            style: TextStyle(color: Colors.white)),
+            style: TextStyle(color: AppColors.textoPrimario)),
         content: Text(
             '¿Eliminar el rol "${rol.nombre}"? Los usuarios con este rol quedarán sin rol asignado.',
-            style: const TextStyle(color: Colors.white54)),
+            style: const TextStyle(color: AppColors.textoSecundario)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar',
-                style: TextStyle(color: Colors.white38)),
+                style: TextStyle(color: AppColors.textoTerciario)),
           ),
           TextButton(
             onPressed: () {
@@ -638,7 +638,7 @@ class _FormularioRolState extends State<FormularioRol> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: AppColors.borde,
                     borderRadius: BorderRadius.circular(2)),
               ),
             ),
@@ -648,7 +648,7 @@ class _FormularioRolState extends State<FormularioRol> {
                   ? 'Nuevo rol'
                   : 'Editar rol',
               style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textoPrimario,
                   fontSize: 18,
                   fontWeight: FontWeight.bold),
             ),
@@ -658,7 +658,7 @@ class _FormularioRolState extends State<FormularioRol> {
 
             const Text('PERMISOS',
                 style: TextStyle(
-                    color: Colors.white38,
+                    color: AppColors.textoTerciario,
                     fontSize: 11,
                     letterSpacing: 0.8)),
             const SizedBox(height: 8),
@@ -670,10 +670,10 @@ class _FormularioRolState extends State<FormularioRol> {
               return CheckboxListTile(
                 value: sel,
                 activeColor: const Color(0xFF6B5EFF),
-                checkColor: Colors.white,
+                checkColor: AppColors.textoPrimario,
                 title: Text(Permiso.nombre(p),
                     style: const TextStyle(
-                        color: Colors.white, fontSize: 13)),
+                        color: AppColors.textoPrimario, fontSize: 13)),
                 contentPadding: EdgeInsets.zero,
                 onChanged: (v) => setState(() {
                   if (v == true) {
@@ -700,7 +700,7 @@ class _FormularioRolState extends State<FormularioRol> {
                 ),
                 child: _cargando
                     ? const CircularProgressIndicator(
-                        color: Colors.white)
+                        color: AppColors.textoPrimario)
                     : Text(
                         widget.rol == null
                             ? 'Crear rol'
@@ -722,20 +722,20 @@ class _FormularioRolState extends State<FormularioRol> {
       children: [
         Text(label,
             style: const TextStyle(
-                color: Colors.white38,
+                color: AppColors.textoTerciario,
                 fontSize: 11,
                 letterSpacing: 0.8)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F1117),
+            color: AppColors.fondoPrincipal,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: AppColors.fondoInput),
           ),
           child: TextField(
             controller: ctrl,
             style: const TextStyle(
-                color: Colors.white, fontSize: 14),
+                color: AppColors.textoPrimario, fontSize: 14),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(

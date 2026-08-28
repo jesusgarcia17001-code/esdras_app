@@ -621,8 +621,11 @@ class _FormularioCodigoState extends State<FormularioCodigo> {
             child: ElevatedButton(
               onPressed: _cargando ? null : _generar,
               child: _cargando
-                  ? const CircularProgressIndicator(
-                      color: AppColors.fondoPrincipal)
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(
+                          color: AppColors.acentoTexto,
+                          strokeWidth: 2))
                   : const Text('Generar código',
                       style: TextStyle(
                           fontSize: 15,
@@ -648,6 +651,14 @@ class _FormularioCodigoState extends State<FormularioCodigo> {
     setState(() => _cargando = false);
     if (resultado != null) {
       widget.onGenerado(resultado);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo generar el código. Intenta de nuevo'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 }
