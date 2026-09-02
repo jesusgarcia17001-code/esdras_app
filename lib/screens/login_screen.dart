@@ -24,6 +24,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passLogin = TextEditingController();
   final _emailReg = TextEditingController();
   final _passReg = TextEditingController();
+  final _passRegConfirm = TextEditingController();
+
+  bool _obscureLogin = true;
+  bool _obscureReg = true;
+  bool _obscureRegConfirm = true;
 
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -79,6 +84,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _mostrarError('La contraseña debe tener mínimo 6 caracteres');
       return;
     }
+    if (_passReg.text != _passRegConfirm.text) {
+      _mostrarError('Las contraseñas no coinciden');
+      return;
+    }
     setState(() => _cargando = true);
     try {
       final error = await _authService.registrar(
@@ -108,6 +117,85 @@ class _LoginScreenState extends State<LoginScreen> {
       _mostrarError(error);
     } else if (error == null) {
       await _navegarSegunEstado();
+    }
+  }
+
+  Future<void> _recuperarPassword() async {
+    final emailCtrl =
+        TextEditingController(text: _emailLogin.text.trim());
+    final enviar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.fondoTarjeta,
+        title: const Text('Recuperar contraseña',
+            style: TextStyle(color: AppColors.textoPrimario)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Escribe tu correo y te enviaremos un enlace '
+              'para restablecer tu contraseña.',
+              style: TextStyle(
+                  color: AppColors.textoSecundario, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.fondoInput,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borde),
+              ),
+              child: TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(
+                    color: AppColors.textoPrimario, fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: 'correo@ejemplo.com',
+                  hintStyle:
+                      TextStyle(color: AppColors.textoTerciario),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    if (enviar != true || !mounted) return;
+    if (emailCtrl.text.trim().isEmpty) {
+      _mostrarError('Escribe tu correo electrónico');
+      return;
+    }
+    setState(() => _cargando = true);
+    final error =
+        await _authService.recuperarPassword(emailCtrl.text.trim());
+    if (!mounted) return;
+    setState(() => _cargando = false);
+    if (error != null) {
+      _mostrarError(error);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Te enviamos un enlace para restablecer tu contraseña'),
+          backgroundColor: AppColors.exito,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -269,7 +357,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _campo(String label, TextEditingController ctrl,
       {bool password = false,
-      TextInputType tipo = TextInputType.text}) {
+      TextInputType tipo = TextInputType.text,
+      bool obscure = false,
+      VoidCallback? onToggleObscure}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -287,14 +377,26 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           child: TextField(
             controller: ctrl,
-            obscureText: password,
+            obscureText: password ? obscure : false,
             keyboardType: tipo,
             style: const TextStyle(
                 color: AppColors.textoPrimario, fontSize: 14),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(
+              contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 14),
+              suffixIcon: password
+                  ? IconButton(
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.textoTerciario,
+                        size: 20,
+                      ),
+                      onPressed: onToggleObscure,
+                    )
+                  : null,
             ),
           ),
         ),
@@ -308,7 +410,26 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         _campo('CORREO ELECTRÓNICO', _emailLogin,
             tipo: TextInputType.emailAddress),
-        _campo('CONTRASEÑA', _passLogin, password: true),
+        _campo('CONTRASEÑA', _passLogin,
+            password: true,
+            obscure: _obscureLogin,
+            onToggleObscure: () =>
+                setState(() => _obscureLogin = !_obscureLogin)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _cargando ? null : _recuperarPassword,
+            style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            child: const Text('¿Olvidaste tu contraseña?',
+                style: TextStyle(
+                    color: AppColors.acento,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+          ),
+        ),
         const SizedBox(height: 4),
         SizedBox(
           width: double.infinity,
@@ -318,7 +439,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? const SizedBox(
                     width: 20, height: 20,
                     child: CircularProgressIndicator(
-                        color: AppColors.fondoPrincipal,
+                        color: AppColors.acentoTexto,
                         strokeWidth: 2))
                 : const Text('Iniciar sesión',
                     style: TextStyle(fontSize: 15,
@@ -335,7 +456,16 @@ class _LoginScreenState extends State<LoginScreen> {
         _campo('NOMBRE COMPLETO', _nombreReg),
         _campo('CORREO ELECTRÓNICO', _emailReg,
             tipo: TextInputType.emailAddress),
-        _campo('CONTRASEÑA', _passReg, password: true),
+        _campo('CONTRASEÑA', _passReg,
+            password: true,
+            obscure: _obscureReg,
+            onToggleObscure: () =>
+                setState(() => _obscureReg = !_obscureReg)),
+        _campo('CONFIRMAR CONTRASEÑA', _passRegConfirm,
+            password: true,
+            obscure: _obscureRegConfirm,
+            onToggleObscure: () => setState(
+                () => _obscureRegConfirm = !_obscureRegConfirm)),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -344,7 +474,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? const SizedBox(
                     width: 20, height: 20,
                     child: CircularProgressIndicator(
-                        color: AppColors.fondoPrincipal,
+                        color: AppColors.acentoTexto,
                         strokeWidth: 2))
                 : const Text('Crear cuenta',
                     style: TextStyle(fontSize: 15,

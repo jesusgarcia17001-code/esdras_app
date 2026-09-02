@@ -2,7 +2,7 @@ name: esdras
 description: "Aplicación de gestión de iglesia Esdra."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+4
 
 environment:
   sdk: ^3.11.5
