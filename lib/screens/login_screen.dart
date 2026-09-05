@@ -31,6 +31,29 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscureRegConfirm = true;
 
   void _mostrarError(String mensaje) {
+    // Errores técnicos (más largos, con detalles de código) se muestran
+    // en un diálogo que no desaparece solo, para poder leerlos con calma
+    // o mandarlos como captura de pantalla.
+    if (mensaje.length > 60) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.fondoTarjeta,
+          title: const Text('Detalle del error',
+              style: TextStyle(color: AppColors.textoPrimario)),
+          content: SelectableText(mensaje,
+              style: const TextStyle(
+                  color: AppColors.textoSecundario, fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),

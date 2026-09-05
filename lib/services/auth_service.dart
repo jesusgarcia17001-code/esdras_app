@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import '../models/miembro_model.dart';
 import 'firestore_service.dart';
 
@@ -86,8 +87,16 @@ class AuthService {
         });
       }
       return null;
+    } on PlatformException catch (e) {
+      // Error específico de Google/Android (ej: código 10 = configuración,
+      // 7 = sin red, 12501 = cancelado por el usuario, etc.)
+      return 'Error de Google — código: ${e.code}'
+          '${e.message != null ? " (${e.message})" : ""}';
+    } on FirebaseAuthException catch (e) {
+      return 'Error de Firebase — código: ${e.code}'
+          '${e.message != null ? " (${e.message})" : ""}';
     } catch (e) {
-      return 'Error al iniciar con Google';
+      return 'Error al iniciar con Google — detalle: $e';
     }
   }
 
