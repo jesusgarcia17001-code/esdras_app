@@ -156,6 +156,63 @@ Future<void> inicializarRoles(String iglesiaId) async {
     }
   }
 
+  // Eliminar (quitar acceso a) un usuario de la iglesia.
+  // Solo quien tiene control_total (Super Admin / Pastor principal)
+  // puede hacerlo.
+  Future<String?> eliminarUsuarioDeIglesia({
+    required String iglesiaId,
+    required String usuarioId,
+    required UsuarioIglesia quienElimina,
+  }) async {
+    // Solo Super Admin (nivel 1), Pastor (nivel 2) o Líder Principal
+    // (nivel 3) pueden eliminar administradores del sistema de roles.
+    if (quienElimina.nivelRol > 3) {
+      return 'Solo el Super Admin, Pastor o Líder Principal pueden '
+          'eliminar administradores del sistema de roles';
+    }
+    if (usuarioId == quienElimina.uid) {
+      return 'No puedes eliminarte a ti mismo';
+    }
+
+    // Averigua el nivel del usuario a eliminar para no permitir que
+    // alguien borre a una persona de igual o mayor jerarquía (ej. un
+    // Líder Principal no puede eliminar a un Pastor o Super Admin).
+    final docObjetivo = await _db
+        .collection('iglesias')
+        .doc(iglesiaId)
+        .collection('usuarios')
+        .doc(usuarioId)
+        .get();
+    if (!docObjetivo.exists) {
+      return 'Esa persona ya no está en el sistema';
+    }
+    final nivelObjetivo = docObjetivo.data()?['nivelRol'] ?? 99;
+    if (!quienElimina.tienePermiso(Permiso.controlTotal) &&
+        nivelObjetivo <= quienElimina.nivelRol) {
+      return 'No puedes eliminar a alguien de igual o mayor '
+          'jerarquía que la tuya';
+    }
+    try {
+      // Quita a la persona de la lista de usuarios de esta iglesia.
+      await _db
+          .collection('iglesias')
+          .doc(iglesiaId)
+          .collection('usuarios')
+          .doc(usuarioId)
+          .delete();
+      // Le revoca el acceso también en su perfil raíz, para que
+      // la próxima vez que abra la app vuelva a la pantalla de
+      // configuración en vez de entrar a esta iglesia.
+      await _db.collection('usuarios').doc(usuarioId).update({
+        'iglesiaId': null,
+        'iglesiaNombre': null,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   // Agregar usuario a la iglesia
   Future<void> agregarUsuarioIglesia({
     required String iglesiaId,

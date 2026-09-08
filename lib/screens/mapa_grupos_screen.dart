@@ -37,11 +37,116 @@ class MapaGruposScreen extends StatefulWidget {
   State<MapaGruposScreen> createState() => _MapaGruposScreenState();
 }
 
-class _MapaGruposScreenState extends State<MapaGruposScreen> {
+class _MapaGruposScreenState extends State<MapaGruposScreen>
+    with TickerProviderStateMixin {
   final _service = FirestoreService();
   final _mapController = MapController();
   Grupo? _grupoSeleccionado;
   final Set<String> _lideresOcultos = {};
+
+  bool _obteniendoUbicacion = false;
+  AnimationController? _animController;
+
+  @override
+  void dispose() {
+    _animController?.dispose();
+    super.dispose();
+  }
+
+  /// Botón de "centrar y orientar", igual al de Google Maps: ubica al
+  /// usuario en el centro de la pantalla con una animación fluida, y
+  /// al mismo tiempo restablece el norte del mapa hacia arriba.
+  Future<void> _centrarEnMiUbicacion() async {
+    setState(() => _obteniendoUbicacion = true);
+    try {
+      var permiso = await Geolocator.checkPermission();
+      if (permiso == LocationPermission.denied) {
+        permiso = await Geolocator.requestPermission();
+      }
+      if (permiso == LocationPermission.denied ||
+          permiso == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permiso de ubicación denegado'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final servicioActivo =
+          await Geolocator.isLocationServiceEnabled();
+      if (!servicioActivo) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Activa el GPS/ubicación del teléfono'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final posicion = await Geolocator.getCurrentPosition();
+      _moverCamaraAnimada(
+        destino: LatLng(posicion.latitude, posicion.longitude),
+        zoomDestino: 15,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo obtener tu ubicación'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _obteniendoUbicacion = false);
+    }
+  }
+
+  /// Anima la cámara del mapa de forma suave hacia el destino,
+  /// interpolando posición y zoom cuadro a cuadro. El movimiento
+  /// normal del mapa (arrastrar, hacer zoom) no se ve afectado en
+  /// absoluto, ya que esto solo corre cuando presionas el botón.
+  void _moverCamaraAnimada({
+    required LatLng destino,
+    required double zoomDestino,
+  }) {
+    _animController?.dispose();
+    final origen = _mapController.camera.center;
+    final zoomOrigen = _mapController.camera.zoom;
+
+    final latTween = Tween<double>(
+        begin: origen.latitude, end: destino.latitude);
+    final lngTween = Tween<double>(
+        begin: origen.longitude, end: destino.longitude);
+    final zoomTween =
+        Tween<double>(begin: zoomOrigen, end: zoomDestino);
+
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    final curva = CurvedAnimation(
+        parent: _animController!, curve: Curves.easeInOutCubic);
+
+    curva.addListener(() {
+      _mapController.move(
+        LatLng(latTween.evaluate(curva), lngTween.evaluate(curva)),
+        zoomTween.evaluate(curva),
+      );
+    });
+
+    _animController!.forward();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,10 +270,35 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
                   right: 0,
                   child: _panelFiltroRedes(redesMapa),
                 ),
+              Positioned(
+                right: 16,
+                bottom: 24,
+                child: _botonCentrarBrujula(),
+              ),
             ],
           );
         },
       ),
+    );
+  }
+
+  /// Botón flotante que centra la ubicación del usuario con una
+  /// animación suave, sin afectar el arrastre normal del mapa.
+  Widget _botonCentrarBrujula() {
+    return FloatingActionButton(
+      heroTag: 'centrar_ubicacion',
+      backgroundColor: AppColors.fondoTarjeta,
+      elevation: 3,
+      onPressed: _obteniendoUbicacion ? null : _centrarEnMiUbicacion,
+      child: _obteniendoUbicacion
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.acento),
+            )
+          : const Icon(Icons.my_location,
+              color: AppColors.acento, size: 24),
     );
   }
 

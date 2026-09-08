@@ -44,7 +44,7 @@ class _RolesScreenState extends State<RolesScreen>
       backgroundColor: AppColors.fondoPrincipal,
 appBar: AppBar(
   backgroundColor: AppColors.fondoPrincipal,
-  title: const Text('Administradores y roles'),
+  title: const Text('Roles y permisos'),
   actions: [
     IconButton(
       icon: const Icon(Icons.key_outlined),
@@ -67,7 +67,7 @@ appBar: AppBar(
   labelColor: AppColors.textoPrimario,
   unselectedLabelColor: AppColors.textoSecundario,
   tabs: const [
-    Tab(text: 'Administradores'),
+    Tab(text: 'Miembros'),
     Tab(text: 'Roles'),
   ],),
 ),
@@ -230,10 +230,9 @@ appBar: AppBar(
               onPressed: () =>
                   _cambiarRolUsuario(u),
             ),
-          if ((_usuarioActual?.nivelRol ?? 99) <= 3 &&
-              !esMiActual &&
-              (_usuarioActual!.tienePermiso(Permiso.controlTotal) ||
-                  u.nivelRol > _usuarioActual!.nivelRol))
+          if (_usuarioActual?.tienePermiso(Permiso.controlTotal) ==
+                  true &&
+              !esMiActual)
             IconButton(
               icon: const Icon(Icons.person_remove_outlined,
                   color: AppColors.error),

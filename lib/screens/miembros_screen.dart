@@ -469,25 +469,31 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w500)),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (m.cedula.isNotEmpty) ...[
+                      if (m.cedula.isNotEmpty)
                         Text(m.cedula,
                             style: const TextStyle(
                                 color: AppColors.textoSecundario,
                                 fontSize: 11)),
-                        const SizedBox(width: 8),
-                      ],
-                      _badge(m.redesNombres.isEmpty
-                          ? 'Sin red'
-                          : m.redesNombres.length == 1
-                              ? m.redesNombres.first
-                              : '${m.redesNombres.first} +${m.redesNombres.length - 1}'),
-                      if (m.bautizado) ...[
-                        const SizedBox(width: 6),
+                      ConstrainedBox(
+                        constraints:
+                            const BoxConstraints(maxWidth: 150),
+                        child: _badge(
+                          m.redesNombres.isEmpty
+                              ? 'Sin red'
+                              : m.redesNombres.length == 1
+                                  ? m.redesNombres.first
+                                  : '${m.redesNombres.first} +${m.redesNombres.length - 1}',
+                          ajustarTexto: true,
+                        ),
+                      ),
+                      if (m.bautizado)
                         _badge('✓ Bautizado',
                             color: AppColors.exito),
-                      ],
                     ],
                   ),
                 ],
@@ -516,7 +522,8 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
     );
   }
 
-  Widget _badge(String texto, {Color? color}) {
+  Widget _badge(String texto,
+      {Color? color, bool ajustarTexto = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: 8, vertical: 2),
@@ -526,6 +533,10 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(texto,
+          maxLines: 1,
+          overflow: ajustarTexto
+              ? TextOverflow.ellipsis
+              : TextOverflow.visible,
           style: TextStyle(
               color: color ?? AppColors.textoSecundario,
               fontSize: 10)),
@@ -549,10 +560,11 @@ class _MiembrosScreenState extends State<MiembrosScreen> {
           miembro: miembro,
           onGuardar: (m) async {
             if (miembro == null) {
-              await _service.agregarMiembro(m);
+              return await _service.agregarMiembro(m);
             } else {
               await _service.actualizarMiembro(
                   miembro.id!, m);
+              return miembro.id;
             }
           },
         ),
@@ -588,6 +600,7 @@ class PerfilMiembroScreen extends StatelessWidget {
                       final service = FirestoreService();
                       await service.actualizarMiembro(
                           miembro.id!, m);
+                      return miembro.id;
                     },
                   ),
                 ),
@@ -857,7 +870,7 @@ class PerfilMiembroScreen extends StatelessWidget {
 // ---- FORMULARIO COMPLETO ----
 class FormularioMiembroScreen extends StatefulWidget {
   final Miembro? miembro;
-  final Function(Miembro) onGuardar;
+  final Future<String?> Function(Miembro) onGuardar;
 
   const FormularioMiembroScreen(
       {super.key, this.miembro, required this.onGuardar});
@@ -1600,6 +1613,7 @@ class _FormularioMiembroScreenState
   void _mostrarSelectorRed() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.fondoSecundario,
       shape: const RoundedRectangleBorder(
         borderRadius:
@@ -1607,8 +1621,18 @@ class _FormularioMiembroScreenState
       ),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1771,6 +1795,8 @@ class _FormularioMiembroScreenState
               ),
             ],
           ],
+            ),
+          ),
         ),
         ),
       ),
@@ -1981,7 +2007,24 @@ class _FormularioMiembroScreenState
           widget.miembro?.fechaRegistro ?? DateTime.now(),
     );
 
-    await widget.onGuardar(miembro);
+    final miembroId = await widget.onGuardar(miembro);
+
+    // El miembro se sincroniza hacia adelante: cada red que se le
+    // haya asignado aquí lo agrega automáticamente a su propia lista
+    // de miembros, sin tener que repetir el trabajo desde Redes.
+    if (miembroId != null && _redesIdsSel.isNotEmpty) {
+      for (var i = 0; i < _redesIdsSel.length; i++) {
+        await _firestoreService.sincronizarPersonasConRed(
+          personas: [
+            MapEntry(miembroId, _nombre.text.trim())
+          ],
+          redId: _redesIdsSel[i],
+          redNombre:
+              i < _redesSel.length ? _redesSel[i] : _redesIdsSel[i],
+        );
+      }
+    }
+
     setState(() => _cargando = false);
 
     if (!mounted) return;

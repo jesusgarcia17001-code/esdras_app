@@ -1,0 +1,6 @@
+flutter build appbundle --release
+
+
+cd C:\Users\JG\Desktop\esdras_app
+
+flutter run

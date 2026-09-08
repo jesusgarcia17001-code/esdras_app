@@ -8,6 +8,45 @@ import '../models/academia_model.dart';
 import '../models/red_model.dart';
 
 class FirestoreService {
+  /// Sincroniza a una o varias personas con una red: se agregan a la
+  /// lista de miembros de esa red, y la red se agrega a la lista de
+  /// redes de cada persona. Es ADITIVO (solo agrega, nunca quita a
+  /// nadie de una lista anterior), para no borrar datos por accidente.
+  /// Sirve tanto para creyentes como para líderes D72/D12, ya que
+  /// todos son en el fondo un Miembro.
+  Future<void> sincronizarPersonasConRed({
+    required List<MapEntry<String, String>> personas, // id -> nombre
+    required String redId,
+    required String redNombre,
+  }) async {
+    if (personas.isEmpty || redId.isEmpty) return;
+    final batch = _db.batch();
+    final coleccionMiembros = _db
+        .collection('iglesias')
+        .doc(iglesiaId)
+        .collection('miembros');
+    final redRef = _db
+        .collection('iglesias')
+        .doc(iglesiaId)
+        .collection('redes')
+        .doc(redId);
+
+    for (final p in personas) {
+      batch.update(coleccionMiembros.doc(p.key), {
+        'redesIds': FieldValue.arrayUnion([redId]),
+        'redesNombres': FieldValue.arrayUnion([redNombre]),
+      });
+    }
+    batch.update(redRef, {
+      'miembrosIds':
+          FieldValue.arrayUnion(personas.map((p) => p.key).toList()),
+      'miembrosNombres':
+          FieldValue.arrayUnion(personas.map((p) => p.value).toList()),
+    });
+    await batch.commit();
+  }
+
+
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 

@@ -376,12 +376,14 @@ class _RedesScreenState extends State<RedesScreen> {
         red: red,
         tiposPredefinidos: _tiposPredefinidos,
         onGuardar: (r) async {
+          String? idFinal = red?.id;
           if (red == null) {
-            await _service.agregarRed(r);
+            idFinal = await _service.agregarRed(r);
           } else {
             await _service.actualizarRed(red.id!, r);
           }
-          Navigator.pop(context);
+          if (context.mounted) Navigator.pop(context);
+          return idFinal;
         },
       ),
     );
@@ -392,7 +394,7 @@ class _RedesScreenState extends State<RedesScreen> {
 class FormularioRed extends StatefulWidget {
   final Red? red;
   final List<Map<String, dynamic>> tiposPredefinidos;
-  final Function(Red) onGuardar;
+  final Future<String?> Function(Red) onGuardar;
 
   const FormularioRed({
     super.key,
@@ -825,7 +827,20 @@ class _FormularioRedState extends State<FormularioRed> {
           _miembros.map((m) => m.nombreCompleto).toList(),
       fechaCreacion: DateTime.now(),
     );
-    await widget.onGuardar(red);
+    // Los miembros seleccionados aquí se sincronizan hacia atrás:
+    // cada uno de sus perfiles se actualiza para que muestre que
+    // pertenece a esta red, sin importar por dónde se haya asignado.
+    final redId = await widget.onGuardar(red);
+    if (redId != null && redId.isNotEmpty && _miembros.isNotEmpty) {
+      await _service.sincronizarPersonasConRed(
+        personas: _miembros
+            .map((m) => MapEntry(m.id!, m.nombreCompleto))
+            .toList(),
+        redId: redId,
+        redNombre: red.nombre,
+      );
+    }
+
     setState(() => _cargando = false);
   }
 }

@@ -389,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'screen': const GruposScreen(),
       },
       {
-        'texto': 'Gestionar roles',
+        'texto': 'Administradores y roles',
         'icono': Icons.manage_accounts_outlined,
         'screen': const RolesScreen(),
       },

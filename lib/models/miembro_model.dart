@@ -36,6 +36,10 @@ extension RolUsuarioExtension on RolUsuario {
   bool get soloSuGrupo =>
       this == RolUsuario.liderLinea ||
       this == RolUsuario.liderCedula;
+
+  /// Solo el Pastor / Super Admin puede eliminar personas del
+  /// sistema de roles (quitarles el acceso a la iglesia).
+  bool get puedeEliminarPersonas => this == RolUsuario.superAdmin;
 }
 
 class UsuarioApp {
