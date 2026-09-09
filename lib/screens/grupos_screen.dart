@@ -134,6 +134,7 @@ class _GruposScreenState extends State<GruposScreen> {
   }) {
     final activos =
         gruposDeRed.where((g) => g.estado == 'Activo').length;
+    final color = colorParaRed(redId ?? '');
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -159,12 +160,12 @@ class _GruposScreenState extends State<GruposScreen> {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.acentoSuave,
+                  color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borde),
+                  border: Border.all(color: color),
                 ),
-                child: const Icon(Icons.hub_outlined,
-                    color: AppColors.textoPrimario, size: 20),
+                child: Icon(Icons.hub_outlined,
+                    color: color, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -245,11 +246,28 @@ class _GruposDeRedScreenState extends State<GruposDeRedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final color = colorParaRed(widget.redId ?? '');
     return Scaffold(
       backgroundColor: AppColors.fondoPrincipal,
       appBar: AppBar(
         backgroundColor: AppColors.fondoPrincipal,
-        title: Text(widget.redNombre),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10, height: 10,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            Flexible(
+              child: Text(widget.redNombre,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

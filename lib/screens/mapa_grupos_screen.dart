@@ -6,11 +6,14 @@ import '../models/grupo_model.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 
-/// Coordenada por defecto cuando aún no hay ubicación (ajústala a tu ciudad).
-const LatLng _kUbicacionPorDefecto = LatLng(10.4806, -66.9036); // Caracas
+/// Coordenada por defecto cuando aún no hay ubicación.
+const LatLng _kUbicacionPorDefecto =
+    LatLng(10.2135, -64.6329); // Puerto La Cruz, Anzoátegui, Venezuela
 
-/// Paleta fija de colores para distinguir Líderes D12 en el mapa.
-const List<Color> _paletaD12 = [
+/// Paleta fija de colores para distinguir Redes. Es pública (sin guion
+/// bajo) para poder usarse también desde grupos_screen.dart y que una
+/// red se vea siempre con el mismo color en toda la app.
+const List<Color> paletaColoresRed = [
   Color(0xFFE57373), // rojo
   Color(0xFF64B5F6), // azul
   Color(0xFF81C784), // verde
@@ -23,16 +26,18 @@ const List<Color> _paletaD12 = [
   Color(0xFF90A4AE), // gris azulado
 ];
 
-/// Devuelve un color para una Red, sin que dos redes de la misma lista
-/// terminen compartiendo color (mientras no haya más redes que colores
-/// en la paleta). [idsOrdenados] debe ser la lista de ids de las redes
-/// visibles en esa pantalla, ya ordenada de forma estable (por ejemplo,
-/// alfabéticamente) para que el color de cada red no cambie de un
-/// refresco a otro.
-Color _colorParaRed(String redId, List<String> idsOrdenados) {
-  final index = idsOrdenados.indexOf(redId);
-  if (index < 0) return AppColors.textoPrimario;
-  return _paletaD12[index % _paletaD12.length];
+/// Devuelve un color para una Red, calculado a partir de su propio ID
+/// (no de su posición en una lista). Esto garantiza que una red se vea
+/// SIEMPRE con el mismo color sin importar en qué pantalla se muestre
+/// ni qué otras redes estén visibles junto a ella en ese momento — a
+/// diferencia de una asignación por índice, que puede cambiar de color
+/// si cambia el conjunto de redes visibles.
+/// El segundo parámetro se conserva por compatibilidad con las llamadas
+/// existentes, pero ya no se usa para calcular el color.
+Color colorParaRed(String redId, [List<String> idsOrdenados = const []]) {
+  if (redId.isEmpty) return AppColors.textoPrimario;
+  final indice = redId.hashCode.abs() % paletaColoresRed.length;
+  return paletaColoresRed[indice];
 }
 
 /// Pantalla que muestra todos los grupos pequeños en un mapa.
@@ -148,7 +153,7 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
                     markers: grupos.map((g) {
                       final colorMarcador = (g.redId != null &&
                               g.redId!.isNotEmpty)
-                          ? _colorParaRed(g.redId!, idsRedesOrdenados)
+                          ? colorParaRed(g.redId!, idsRedesOrdenados)
                           : AppColors.textoPrimario;
                       return Marker(
                         point: LatLng(g.latitud!, g.longitud!),
@@ -192,7 +197,7 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
         children: redesMapa.entries.map((entry) {
           final id = entry.key;
           final nombre = entry.value;
-          final color = _colorParaRed(id, idsRedesOrdenados);
+          final color = colorParaRed(id, idsRedesOrdenados);
           final oculto = _lideresOcultos.contains(id);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -333,12 +338,12 @@ class _FichaGrupo extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: _colorParaRed(
+                        color: colorParaRed(
                                 grupo.redId ?? '', idsRedesOrdenados)
                             .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: _colorParaRed(
+                            color: colorParaRed(
                                 grupo.redId ?? '', idsRedesOrdenados)),
                       ),
                       child: Row(
@@ -346,13 +351,13 @@ class _FichaGrupo extends StatelessWidget {
                         children: [
                           Icon(Icons.hub_outlined,
                               size: 14,
-                              color: _colorParaRed(
+                              color: colorParaRed(
                                   grupo.redId ?? '', idsRedesOrdenados)),
                           const SizedBox(width: 5),
                           Text(
                             grupo.redNombre!,
                             style: TextStyle(
-                              color: _colorParaRed(
+                              color: colorParaRed(
                                   grupo.redId ?? '', idsRedesOrdenados),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -605,7 +610,7 @@ class _PanelEstadisticas extends StatelessWidget {
                       nombre: nombresRed[e.key] ?? e.key,
                       cantidad: e.value,
                       maximo: maxRed,
-                      color: _colorParaRed(e.key, idsRedesOrdenados),
+                      color: colorParaRed(e.key, idsRedesOrdenados),
                       onTap: () {
                         final celulasDeRed = grupos
                             .where((g) => g.redId == e.key)
@@ -616,7 +621,7 @@ class _PanelEstadisticas extends StatelessWidget {
                           isScrollControlled: true,
                           builder: (_) => _DetalleRed(
                             nombreRed: nombresRed[e.key] ?? e.key,
-                            color: _colorParaRed(e.key, idsRedesOrdenados),
+                            color: colorParaRed(e.key, idsRedesOrdenados),
                             celulas: celulasDeRed,
                           ),
                         );
@@ -909,6 +914,7 @@ class SelectorUbicacionMapa extends StatefulWidget {
 class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
   late LatLng _punto;
   bool _cargandoUbicacion = false;
+  final _mapController = MapController();
 
   @override
   void initState() {
@@ -940,7 +946,12 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
         return;
       }
       final pos = await Geolocator.getCurrentPosition();
-      setState(() => _punto = LatLng(pos.latitude, pos.longitude));
+      final nuevoPunto = LatLng(pos.latitude, pos.longitude);
+      setState(() => _punto = nuevoPunto);
+      // Sin esto, el marcador se movía a la nueva ubicación pero la
+      // cámara del mapa se quedaba donde estaba; move() la hace viajar
+      // también hasta ahí.
+      _mapController.move(nuevoPunto, 16);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -975,6 +986,7 @@ class _SelectorUbicacionMapaState extends State<SelectorUbicacionMapa> {
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
               initialCenter: _punto,
               initialZoom: 14,
