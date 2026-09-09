@@ -8,45 +8,6 @@ import '../models/academia_model.dart';
 import '../models/red_model.dart';
 
 class FirestoreService {
-  /// Sincroniza a una o varias personas con una red: se agregan a la
-  /// lista de miembros de esa red, y la red se agrega a la lista de
-  /// redes de cada persona. Es ADITIVO (solo agrega, nunca quita a
-  /// nadie de una lista anterior), para no borrar datos por accidente.
-  /// Sirve tanto para creyentes como para líderes D72/D12, ya que
-  /// todos son en el fondo un Miembro.
-  Future<void> sincronizarPersonasConRed({
-    required List<MapEntry<String, String>> personas, // id -> nombre
-    required String redId,
-    required String redNombre,
-  }) async {
-    if (personas.isEmpty || redId.isEmpty) return;
-    final batch = _db.batch();
-    final coleccionMiembros = _db
-        .collection('iglesias')
-        .doc(iglesiaId)
-        .collection('miembros');
-    final redRef = _db
-        .collection('iglesias')
-        .doc(iglesiaId)
-        .collection('redes')
-        .doc(redId);
-
-    for (final p in personas) {
-      batch.update(coleccionMiembros.doc(p.key), {
-        'redesIds': FieldValue.arrayUnion([redId]),
-        'redesNombres': FieldValue.arrayUnion([redNombre]),
-      });
-    }
-    batch.update(redRef, {
-      'miembrosIds':
-          FieldValue.arrayUnion(personas.map((p) => p.key).toList()),
-      'miembrosNombres':
-          FieldValue.arrayUnion(personas.map((p) => p.value).toList()),
-    });
-    await batch.commit();
-  }
-
-
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -98,11 +59,17 @@ class FirestoreService {
   // ---- MIEMBROS ----
   Future<String?> agregarMiembro(Miembro miembro) async {
     try {
-      await _db
+      final doc = await _db
           .collection('iglesias')
           .doc(iglesiaId)
           .collection('miembros')
           .add(miembro.toMap());
+      await _sincronizarRedesDeMiembro(
+        miembroId: doc.id,
+        nombreCompleto: miembro.nombreCompleto,
+        redesNuevasIds: miembro.redesIds,
+        esLiderNuevo: miembro.esLider,
+      );
       return null;
     } catch (e) {
       return e.toString();
@@ -122,22 +89,112 @@ class FirestoreService {
   }
 
   Future<void> eliminarMiembro(String miembroId) async {
-    await _db
+    final ref = _db
         .collection('iglesias')
         .doc(iglesiaId)
         .collection('miembros')
-        .doc(miembroId)
-        .delete();
+        .doc(miembroId);
+    final anteriorSnap = await ref.get();
+    final anterior = anteriorSnap.exists
+        ? Miembro.fromMap(miembroId, anteriorSnap.data()!)
+        : null;
+
+    await ref.delete();
+
+    // Si pertenecía a alguna red, hay que sacarlo de ahí también,
+    // si no la red se queda mostrando un líder o miembro que ya no existe.
+    if (anterior != null && anterior.redesIds.isNotEmpty) {
+      await _sincronizarRedesDeMiembro(
+        miembroId: miembroId,
+        nombreCompleto: anterior.nombreCompleto,
+        redesNuevasIds: const [],
+        esLiderNuevo: false,
+        redesAnterioresIds: anterior.redesIds,
+      );
+    }
   }
 
   Future<void> actualizarMiembro(
       String miembroId, Miembro miembro) async {
-    await _db
+    final ref = _db
         .collection('iglesias')
         .doc(iglesiaId)
         .collection('miembros')
-        .doc(miembroId)
-        .update(miembro.toMap());
+        .doc(miembroId);
+
+    // Se lee el estado anterior ANTES de sobreescribir, para saber de qué
+    // redes hay que quitarlo (si cambió de red) o si dejó de ser líder.
+    final anteriorSnap = await ref.get();
+    final redesAnterioresIds = anteriorSnap.exists
+        ? List<String>.from(anteriorSnap.data()!['redesIds'] ?? [])
+        : <String>[];
+
+    await ref.update(miembro.toMap());
+
+    await _sincronizarRedesDeMiembro(
+      miembroId: miembroId,
+      nombreCompleto: miembro.nombreCompleto,
+      redesNuevasIds: miembro.redesIds,
+      esLiderNuevo: miembro.esLider,
+      redesAnterioresIds: redesAnterioresIds,
+    );
+  }
+
+  /// Mantiene sincronizados los arreglos `lideresIds`/`miembrosIds` de cada
+  /// Red con lo que el perfil del Miembro dice. Esta es la ÚNICA fuente de
+  /// verdad para esos arreglos cuando el cambio viene desde la sección de
+  /// Miembros: si el miembro es líder aparece en `lideresIds` de sus redes,
+  /// si es creyente aparece en `miembrosIds`, y si se le quita una red (o
+  /// se elimina el miembro) se le retira de los arreglos de esa red.
+  Future<void> _sincronizarRedesDeMiembro({
+    required String miembroId,
+    required String nombreCompleto,
+    required List<String> redesNuevasIds,
+    required bool esLiderNuevo,
+    List<String> redesAnterioresIds = const [],
+  }) async {
+    final coleccionRedes =
+        _db.collection('iglesias').doc(iglesiaId).collection('redes');
+
+    // Redes a las que pertenecía y ya no pertenece: se le retira por completo.
+    final redesAQuitar =
+        redesAnterioresIds.where((id) => !redesNuevasIds.contains(id));
+    for (final redId in redesAQuitar) {
+      try {
+        await coleccionRedes.doc(redId).update({
+          'lideresIds': FieldValue.arrayRemove([miembroId]),
+          'lideresNombres': FieldValue.arrayRemove([nombreCompleto]),
+          'miembrosIds': FieldValue.arrayRemove([miembroId]),
+          'miembrosNombres': FieldValue.arrayRemove([nombreCompleto]),
+        });
+      } catch (_) {
+        // La red pudo haber sido eliminada mientras tanto; se ignora.
+      }
+    }
+
+    // Redes a las que sigue o queda asignado ahora: se asegura que esté en
+    // el arreglo correcto (líder o creyente) y no en el otro.
+    for (final redId in redesNuevasIds) {
+      try {
+        if (esLiderNuevo) {
+          await coleccionRedes.doc(redId).update({
+            'lideresIds': FieldValue.arrayUnion([miembroId]),
+            'lideresNombres': FieldValue.arrayUnion([nombreCompleto]),
+            'miembrosIds': FieldValue.arrayRemove([miembroId]),
+            'miembrosNombres': FieldValue.arrayRemove([nombreCompleto]),
+          });
+        } else {
+          await coleccionRedes.doc(redId).update({
+            'miembrosIds': FieldValue.arrayUnion([miembroId]),
+            'miembrosNombres': FieldValue.arrayUnion([nombreCompleto]),
+            'lideresIds': FieldValue.arrayRemove([miembroId]),
+            'lideresNombres': FieldValue.arrayRemove([nombreCompleto]),
+          });
+        }
+      } catch (_) {
+        // La red pudo haber sido eliminada mientras tanto; se ignora.
+      }
+    }
   }
 
   // ---- IMPORTACIÓN MASIVA DE MIEMBROS ----
@@ -368,11 +425,17 @@ class FirestoreService {
 
   Future<String?> agregarRed(Red red) async {
     try {
-      await _db
+      final doc = await _db
           .collection('iglesias')
           .doc(iglesiaId)
           .collection('redes')
           .add(red.toMap());
+      await _sincronizarMiembrosDeRed(
+        redId: doc.id,
+        redNombre: red.nombre,
+        lideresIdsNuevos: red.lideresIds,
+        miembrosIdsNuevos: red.miembrosIds,
+      );
       return null;
     } catch (e) {
       return e.toString();
@@ -380,20 +443,95 @@ class FirestoreService {
   }
 
   Future<void> actualizarRed(String redId, Red red) async {
-    await _db
+    final ref = _db
         .collection('iglesias')
         .doc(iglesiaId)
         .collection('redes')
-        .doc(redId)
-        .update(red.toMap());
+        .doc(redId);
+
+    final anteriorSnap = await ref.get();
+    final anterior =
+        anteriorSnap.exists ? Red.fromMap(redId, anteriorSnap.data()!) : null;
+
+    await ref.update(red.toMap());
+
+    await _sincronizarMiembrosDeRed(
+      redId: redId,
+      redNombre: red.nombre,
+      lideresIdsNuevos: red.lideresIds,
+      miembrosIdsNuevos: red.miembrosIds,
+      lideresIdsAnteriores: anterior?.lideresIds ?? const [],
+      miembrosIdsAnteriores: anterior?.miembrosIds ?? const [],
+    );
   }
 
   Future<void> eliminarRed(String redId) async {
-    await _db
+    final ref = _db
         .collection('iglesias')
         .doc(iglesiaId)
         .collection('redes')
-        .doc(redId)
-        .delete();
+        .doc(redId);
+
+    final anteriorSnap = await ref.get();
+    final anterior =
+        anteriorSnap.exists ? Red.fromMap(redId, anteriorSnap.data()!) : null;
+
+    await ref.delete();
+
+    // Si no se limpia, los miembros que pertenecían a esta red quedan con
+    // una referencia a una red que ya no existe (redesIds/redesNombres
+    // desactualizados).
+    if (anterior != null) {
+      await _sincronizarMiembrosDeRed(
+        redId: redId,
+        redNombre: anterior.nombre,
+        lideresIdsNuevos: const [],
+        miembrosIdsNuevos: const [],
+        lideresIdsAnteriores: anterior.lideresIds,
+        miembrosIdsAnteriores: anterior.miembrosIds,
+      );
+    }
+  }
+
+  /// Contraparte de [_sincronizarRedesDeMiembro]: cuando la Red se edita
+  /// directamente desde la sección de Redes (por ejemplo, se le agrega o
+  /// quita un líder desde ahí), se refleja el cambio en el perfil de cada
+  /// Miembro afectado para que ambas pantallas queden consistentes.
+  Future<void> _sincronizarMiembrosDeRed({
+    required String redId,
+    required String redNombre,
+    required List<String> lideresIdsNuevos,
+    required List<String> miembrosIdsNuevos,
+    List<String> lideresIdsAnteriores = const [],
+    List<String> miembrosIdsAnteriores = const [],
+  }) async {
+    final coleccionMiembros =
+        _db.collection('iglesias').doc(iglesiaId).collection('miembros');
+
+    final antes = {...lideresIdsAnteriores, ...miembrosIdsAnteriores};
+    final ahora = {...lideresIdsNuevos, ...miembrosIdsNuevos};
+
+    final aQuitar = antes.difference(ahora);
+    for (final miembroId in aQuitar) {
+      try {
+        await coleccionMiembros.doc(miembroId).update({
+          'redesIds': FieldValue.arrayRemove([redId]),
+          'redesNombres': FieldValue.arrayRemove([redNombre]),
+        });
+      } catch (_) {
+        // El miembro pudo haber sido eliminado mientras tanto; se ignora.
+      }
+    }
+
+    for (final miembroId in ahora) {
+      try {
+        await coleccionMiembros.doc(miembroId).update({
+          'redesIds': FieldValue.arrayUnion([redId]),
+          'redesNombres': FieldValue.arrayUnion([redNombre]),
+        });
+      } catch (_) {
+        // El miembro pudo haber sido eliminado mientras tanto; se ignora.
+      }
+    }
   }
 }

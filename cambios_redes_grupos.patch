@@ -1,0 +1,666 @@
+diff --git a/lib/screens/grupos_screen.dart b/lib/screens/grupos_screen.dart
+index 39b92be..a6ebdcb 100644
+--- a/lib/screens/grupos_screen.dart
++++ b/lib/screens/grupos_screen.dart
+@@ -512,17 +512,18 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+     required List<Miembro> seleccionados,
+     required Function(List<Miembro>) onConfirmar,
+     String? filtroRol,
+-    List<String>? soloIds,
++    String? redId,
++    bool soloCreyentes = false,
+   }) {
+-    var disponibles = filtroRol != null
+-        ? _todosMiembros
+-            .where((m) => m.rolLider == filtroRol)
+-            .toList()
+-        : _todosMiembros;
+-    if (soloIds != null) {
+-      disponibles =
+-          disponibles.where((m) => soloIds.contains(m.id)).toList();
+-    }
++    // Filtra siempre por la red seleccionada del grupo (cada lista de
++    // líderes/creyentes debe salir SOLO de esa red), y además por rol
++    // cuando aplica (líder de línea / líder de cédula / creyente).
++    final disponibles = _todosMiembros.where((m) {
++      if (redId != null && !m.redesIds.contains(redId)) return false;
++      if (filtroRol != null && m.rolLider != filtroRol) return false;
++      if (soloCreyentes && m.esLider) return false;
++      return true;
++    }).toList();
+     final tempSel = List<Miembro>.from(seleccionados);
+     var busqueda = '';
+ 
+@@ -578,10 +579,11 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+                     child: disponibles.isEmpty
+                         ? Center(
+                             child: Text(
+-                              soloIds != null
+-                                  ? 'Esta red no tiene líderes de línea registrados'
+-                                  : (filtroRol != null
+-                                      ? 'No hay líderes con ese rol'
++                              filtroRol != null
++                                  ? 'Esta red no tiene "$filtroRol" registrados'
++                                  : (soloCreyentes
++                                      ? 'Esta red no tiene creyentes '
++                                          'registrados'
+                                       : 'No hay miembros registrados'),
+                               style: const TextStyle(
+                                   color: AppColors.textoSecundario),
+@@ -685,16 +687,28 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+                 title: Text(r.nombre,
+                     style: const TextStyle(
+                         color: AppColors.textoPrimario, fontSize: 14)),
+-                subtitle: Text('${r.lideresIds.length} líderes de línea',
++                subtitle: Text('${r.lideresIds.length} líderes',
+                     style: const TextStyle(
+                         color: AppColors.textoSecundario, fontSize: 11)),
+                 onTap: () {
+                   setState(() {
+-                    // Si cambia de red, se limpian los líderes de línea
+-                    // elegidos que no pertenezcan a la nueva red.
++                    // Si cambia de red, se limpian los líderes/creyentes ya
++                    // elegidos que no pertenezcan a la nueva red, para no
++                    // arrastrar gente de la red anterior.
+                     if (_redId != r.id) {
+                       _lideresLinea = _lideresLinea
+-                          .where((m) => r.lideresIds.contains(m.id))
++                          .where((m) =>
++                              m.redesIds.contains(r.id) &&
++                              m.rolLider == 'Líder de línea')
++                          .toList();
++                      _lideresCedula = _lideresCedula
++                          .where((m) =>
++                              m.redesIds.contains(r.id) &&
++                              m.rolLider == 'Líder de cédula')
++                          .toList();
++                      _miembros = _miembros
++                          .where((m) =>
++                              m.redesIds.contains(r.id) && !m.esLider)
+                           .toList();
+                     }
+                     _redId = r.id;
+@@ -881,12 +895,11 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+                   );
+                   return;
+                 }
+-                final red = _redesDisponibles
+-                    .firstWhere((r) => r.id == _redId);
+                 _seleccionarPersonas(
+                   titulo: 'Líderes de línea de $_redNombre',
+                   seleccionados: _lideresLinea,
+-                  soloIds: red.lideresIds,
++                  redId: _redId,
++                  filtroRol: 'Líder de línea',
+                   onConfirmar: (lista) =>
+                       setState(() => _lideresLinea = lista),
+                 );
+@@ -898,13 +911,26 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+               titulo: 'LÍDERES DE CÉDULA',
+               seleccionados: _lideresCedula,
+               icono: Icons.person,
+-              onTap: () => _seleccionarPersonas(
+-                titulo: 'Seleccionar líderes de cédula',
+-                seleccionados: _lideresCedula,
+-                filtroRol: 'Líder de cédula',
+-                onConfirmar: (lista) =>
+-                    setState(() => _lideresCedula = lista),
+-              ),
++              onTap: () {
++                if (_redId == null) {
++                  ScaffoldMessenger.of(context).showSnackBar(
++                    const SnackBar(
++                      content: Text('Primero selecciona la red'),
++                      backgroundColor: AppColors.error,
++                      behavior: SnackBarBehavior.floating,
++                    ),
++                  );
++                  return;
++                }
++                _seleccionarPersonas(
++                  titulo: 'Líderes de cédula de $_redNombre',
++                  seleccionados: _lideresCedula,
++                  redId: _redId,
++                  filtroRol: 'Líder de cédula',
++                  onConfirmar: (lista) =>
++                      setState(() => _lideresCedula = lista),
++                );
++              },
+             ),
+             const SizedBox(height: 12),
+ 
+@@ -912,12 +938,26 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
+               titulo: 'NUEVOS CREYENTES',
+               seleccionados: _miembros,
+               icono: Icons.people,
+-              onTap: () => _seleccionarPersonas(
+-                titulo: 'Seleccionar nuevos creyentes',
+-                seleccionados: _miembros,
+-                onConfirmar: (lista) =>
+-                    setState(() => _miembros = lista),
+-              ),
++              onTap: () {
++                if (_redId == null) {
++                  ScaffoldMessenger.of(context).showSnackBar(
++                    const SnackBar(
++                      content: Text('Primero selecciona la red'),
++                      backgroundColor: AppColors.error,
++                      behavior: SnackBarBehavior.floating,
++                    ),
++                  );
++                  return;
++                }
++                _seleccionarPersonas(
++                  titulo: 'Nuevos creyentes de $_redNombre',
++                  seleccionados: _miembros,
++                  redId: _redId,
++                  soloCreyentes: true,
++                  onConfirmar: (lista) =>
++                      setState(() => _miembros = lista),
++                );
++              },
+             ),
+ 
+             const SizedBox(height: 24),
+diff --git a/lib/screens/mapa_grupos_screen.dart b/lib/screens/mapa_grupos_screen.dart
+index 2b54d73..019c088 100644
+--- a/lib/screens/mapa_grupos_screen.dart
++++ b/lib/screens/mapa_grupos_screen.dart
+@@ -23,10 +23,16 @@ const List<Color> _paletaD12 = [
+   Color(0xFF90A4AE), // gris azulado
+ ];
+ 
+-/// Devuelve un color estable para un Líder D12, basado en su id.
+-Color _colorParaLider(String liderId) {
+-  final hash = liderId.codeUnits.fold<int>(0, (a, b) => a + b);
+-  return _paletaD12[hash % _paletaD12.length];
++/// Devuelve un color para una Red, sin que dos redes de la misma lista
++/// terminen compartiendo color (mientras no haya más redes que colores
++/// en la paleta). [idsOrdenados] debe ser la lista de ids de las redes
++/// visibles en esa pantalla, ya ordenada de forma estable (por ejemplo,
++/// alfabéticamente) para que el color de cada red no cambie de un
++/// refresco a otro.
++Color _colorParaRed(String redId, List<String> idsOrdenados) {
++  final index = idsOrdenados.indexOf(redId);
++  if (index < 0) return AppColors.textoPrimario;
++  return _paletaD12[index % _paletaD12.length];
+ }
+ 
+ /// Pantalla que muestra todos los grupos pequeños en un mapa.
+@@ -77,6 +83,9 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+               redesMapa[g.redId!] = g.redNombre ?? g.redId!;
+             }
+           }
++          // Orden estable para que cada red tenga siempre un color distinto
++          // de las demás (y no cambie de color entre refrescos).
++          final idsRedesOrdenados = redesMapa.keys.toList()..sort();
+ 
+           // Se muestra un grupo si su red está visible, o si no tiene
+           // red asignada (para no ocultarlo silenciosamente).
+@@ -139,14 +148,15 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+                     markers: grupos.map((g) {
+                       final colorMarcador = (g.redId != null &&
+                               g.redId!.isNotEmpty)
+-                          ? _colorParaLider(g.redId!)
++                          ? _colorParaRed(g.redId!, idsRedesOrdenados)
+                           : AppColors.textoPrimario;
+                       return Marker(
+                         point: LatLng(g.latitud!, g.longitud!),
+                         width: 44,
+                         height: 44,
+                         child: GestureDetector(
+-                          onTap: () => _abrirFichaGrupo(context, g),
++                          onTap: () => _abrirFichaGrupo(
++                              context, g, idsRedesOrdenados),
+                           child: Icon(
+                             Icons.location_on,
+                             color: colorMarcador,
+@@ -163,7 +173,7 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+                   top: 12,
+                   left: 0,
+                   right: 0,
+-                  child: _panelFiltroRedes(redesMapa),
++                  child: _panelFiltroRedes(redesMapa, idsRedesOrdenados),
+                 ),
+             ],
+           );
+@@ -172,7 +182,8 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+     );
+   }
+ 
+-  Widget _panelFiltroRedes(Map<String, String> redesMapa) {
++  Widget _panelFiltroRedes(
++      Map<String, String> redesMapa, List<String> idsRedesOrdenados) {
+     return SizedBox(
+       height: 42,
+       child: ListView(
+@@ -181,7 +192,7 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+         children: redesMapa.entries.map((entry) {
+           final id = entry.key;
+           final nombre = entry.value;
+-          final color = _colorParaLider(id);
++          final color = _colorParaRed(id, idsRedesOrdenados);
+           final oculto = _lideresOcultos.contains(id);
+           return Padding(
+             padding: const EdgeInsets.only(right: 8),
+@@ -238,12 +249,14 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+     );
+   }
+ 
+-  void _abrirFichaGrupo(BuildContext context, Grupo g) {
++  void _abrirFichaGrupo(
++      BuildContext context, Grupo g, List<String> idsRedesOrdenados) {
+     showModalBottomSheet(
+       context: context,
+       backgroundColor: Colors.transparent,
+       isScrollControlled: true,
+-      builder: (_) => _FichaGrupo(grupo: g),
++      builder: (_) =>
++          _FichaGrupo(grupo: g, idsRedesOrdenados: idsRedesOrdenados),
+     );
+   }
+ 
+@@ -265,7 +278,9 @@ class _MapaGruposScreenState extends State<MapaGruposScreen> {
+ 
+ class _FichaGrupo extends StatelessWidget {
+   final Grupo grupo;
+-  const _FichaGrupo({required this.grupo});
++  final List<String> idsRedesOrdenados;
++  const _FichaGrupo(
++      {required this.grupo, this.idsRedesOrdenados = const []});
+ 
+   @override
+   Widget build(BuildContext context) {
+@@ -318,23 +333,27 @@ class _FichaGrupo extends StatelessWidget {
+                       padding: const EdgeInsets.symmetric(
+                           horizontal: 10, vertical: 5),
+                       decoration: BoxDecoration(
+-                        color: _colorParaLider(grupo.redId ?? '')
++                        color: _colorParaRed(
++                                grupo.redId ?? '', idsRedesOrdenados)
+                             .withValues(alpha: 0.15),
+                         borderRadius: BorderRadius.circular(20),
+                         border: Border.all(
+-                            color: _colorParaLider(grupo.redId ?? '')),
++                            color: _colorParaRed(
++                                grupo.redId ?? '', idsRedesOrdenados)),
+                       ),
+                       child: Row(
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                           Icon(Icons.hub_outlined,
+                               size: 14,
+-                              color: _colorParaLider(grupo.redId ?? '')),
++                              color: _colorParaRed(
++                                  grupo.redId ?? '', idsRedesOrdenados)),
+                           const SizedBox(width: 5),
+                           Text(
+                             grupo.redNombre!,
+                             style: TextStyle(
+-                              color: _colorParaLider(grupo.redId ?? ''),
++                              color: _colorParaRed(
++                                  grupo.redId ?? '', idsRedesOrdenados),
+                               fontSize: 12,
+                               fontWeight: FontWeight.w600,
+                             ),
+@@ -500,6 +519,11 @@ class _PanelEstadisticas extends StatelessWidget {
+     final maxRed =
+         entradasRed.isEmpty ? 1 : entradasRed.first.value;
+ 
++    // Orden estable (independiente del orden por cantidad de arriba) para
++    // que cada red mantenga siempre el mismo color y nunca coincida con
++    // el de otra red en esta misma lista.
++    final idsRedesOrdenados = nombresRed.keys.toList()..sort();
++
+     return DraggableScrollableSheet(
+       initialChildSize: 0.7,
+       minChildSize: 0.4,
+@@ -581,7 +605,7 @@ class _PanelEstadisticas extends StatelessWidget {
+                       nombre: nombresRed[e.key] ?? e.key,
+                       cantidad: e.value,
+                       maximo: maxRed,
+-                      color: _colorParaLider(e.key),
++                      color: _colorParaRed(e.key, idsRedesOrdenados),
+                       onTap: () {
+                         final celulasDeRed = grupos
+                             .where((g) => g.redId == e.key)
+@@ -592,7 +616,7 @@ class _PanelEstadisticas extends StatelessWidget {
+                           isScrollControlled: true,
+                           builder: (_) => _DetalleRed(
+                             nombreRed: nombresRed[e.key] ?? e.key,
+-                            color: _colorParaLider(e.key),
++                            color: _colorParaRed(e.key, idsRedesOrdenados),
+                             celulas: celulasDeRed,
+                           ),
+                         );
+diff --git a/lib/screens/redes_screen.dart b/lib/screens/redes_screen.dart
+index 271fc08..909cae3 100644
+--- a/lib/screens/redes_screen.dart
++++ b/lib/screens/redes_screen.dart
+@@ -444,16 +444,23 @@ class _FormularioRedState extends State<FormularioRed> {
+     required String titulo,
+     required List<Miembro> seleccionados,
+     required Function(List<Miembro>) onConfirmar,
++    bool soloLideres = false,
+   }) {
+     final temp = List<Miembro>.from(seleccionados);
+     var busqueda = '';
++    // Para "líderes de la red" solo deben aparecer miembros cuyo perfil
++    // ya está marcado como líder (esLider = true); para "miembros" de
++    // la red se puede elegir entre todos.
++    final disponibles = soloLideres
++        ? _todosMiembros.where((m) => m.esLider).toList()
++        : _todosMiembros;
+     showDialog(
+       context: context,
+       builder: (_) => StatefulBuilder(
+         builder: (ctx, setS) {
+           final filtrados = busqueda.isEmpty
+-              ? _todosMiembros
+-              : _todosMiembros
++              ? disponibles
++              : disponibles
+                   .where((m) => m.nombreCompleto
+                       .toLowerCase()
+                       .contains(busqueda.toLowerCase()))
+@@ -468,7 +475,7 @@ class _FormularioRedState extends State<FormularioRed> {
+               height: 360,
+               child: Column(
+                 children: [
+-                  if (_todosMiembros.isNotEmpty)
++                  if (disponibles.isNotEmpty)
+                     Padding(
+                       padding: const EdgeInsets.only(bottom: 10),
+                       child: TextField(
+@@ -495,10 +502,15 @@ class _FormularioRedState extends State<FormularioRed> {
+                       ),
+                     ),
+                   Expanded(
+-                    child: _todosMiembros.isEmpty
+-                        ? const Center(
+-                            child: Text('No hay miembros registrados',
+-                                style: TextStyle(
++                    child: disponibles.isEmpty
++                        ? Center(
++                            child: Text(
++                                soloLideres
++                                    ? 'No hay miembros marcados como líder '
++                                        'todavía'
++                                    : 'No hay miembros registrados',
++                                textAlign: TextAlign.center,
++                                style: const TextStyle(
+                                     color: AppColors.textoSecundario)))
+                         : filtrados.isEmpty
+                             ? const Center(
+@@ -656,6 +668,7 @@ class _FormularioRedState extends State<FormularioRed> {
+               onTap: () => _seleccionar(
+                 titulo: 'Seleccionar líderes',
+                 seleccionados: _lideres,
++                soloLideres: true,
+                 onConfirmar: (l) =>
+                     setState(() => _lideres = l),
+               ),
+diff --git a/lib/services/firestore_service.dart b/lib/services/firestore_service.dart
+index 96bd175..0cec091 100644
+--- a/lib/services/firestore_service.dart
++++ b/lib/services/firestore_service.dart
+@@ -59,11 +59,17 @@ class FirestoreService {
+   // ---- MIEMBROS ----
+   Future<String?> agregarMiembro(Miembro miembro) async {
+     try {
+-      await _db
++      final doc = await _db
+           .collection('iglesias')
+           .doc(iglesiaId)
+           .collection('miembros')
+           .add(miembro.toMap());
++      await _sincronizarRedesDeMiembro(
++        miembroId: doc.id,
++        nombreCompleto: miembro.nombreCompleto,
++        redesNuevasIds: miembro.redesIds,
++        esLiderNuevo: miembro.esLider,
++      );
+       return null;
+     } catch (e) {
+       return e.toString();
+@@ -83,22 +89,112 @@ class FirestoreService {
+   }
+ 
+   Future<void> eliminarMiembro(String miembroId) async {
+-    await _db
++    final ref = _db
+         .collection('iglesias')
+         .doc(iglesiaId)
+         .collection('miembros')
+-        .doc(miembroId)
+-        .delete();
++        .doc(miembroId);
++    final anteriorSnap = await ref.get();
++    final anterior = anteriorSnap.exists
++        ? Miembro.fromMap(miembroId, anteriorSnap.data()!)
++        : null;
++
++    await ref.delete();
++
++    // Si pertenecía a alguna red, hay que sacarlo de ahí también,
++    // si no la red se queda mostrando un líder o miembro que ya no existe.
++    if (anterior != null && anterior.redesIds.isNotEmpty) {
++      await _sincronizarRedesDeMiembro(
++        miembroId: miembroId,
++        nombreCompleto: anterior.nombreCompleto,
++        redesNuevasIds: const [],
++        esLiderNuevo: false,
++        redesAnterioresIds: anterior.redesIds,
++      );
++    }
+   }
+ 
+   Future<void> actualizarMiembro(
+       String miembroId, Miembro miembro) async {
+-    await _db
++    final ref = _db
+         .collection('iglesias')
+         .doc(iglesiaId)
+         .collection('miembros')
+-        .doc(miembroId)
+-        .update(miembro.toMap());
++        .doc(miembroId);
++
++    // Se lee el estado anterior ANTES de sobreescribir, para saber de qué
++    // redes hay que quitarlo (si cambió de red) o si dejó de ser líder.
++    final anteriorSnap = await ref.get();
++    final redesAnterioresIds = anteriorSnap.exists
++        ? List<String>.from(anteriorSnap.data()!['redesIds'] ?? [])
++        : <String>[];
++
++    await ref.update(miembro.toMap());
++
++    await _sincronizarRedesDeMiembro(
++      miembroId: miembroId,
++      nombreCompleto: miembro.nombreCompleto,
++      redesNuevasIds: miembro.redesIds,
++      esLiderNuevo: miembro.esLider,
++      redesAnterioresIds: redesAnterioresIds,
++    );
++  }
++
++  /// Mantiene sincronizados los arreglos `lideresIds`/`miembrosIds` de cada
++  /// Red con lo que el perfil del Miembro dice. Esta es la ÚNICA fuente de
++  /// verdad para esos arreglos cuando el cambio viene desde la sección de
++  /// Miembros: si el miembro es líder aparece en `lideresIds` de sus redes,
++  /// si es creyente aparece en `miembrosIds`, y si se le quita una red (o
++  /// se elimina el miembro) se le retira de los arreglos de esa red.
++  Future<void> _sincronizarRedesDeMiembro({
++    required String miembroId,
++    required String nombreCompleto,
++    required List<String> redesNuevasIds,
++    required bool esLiderNuevo,
++    List<String> redesAnterioresIds = const [],
++  }) async {
++    final coleccionRedes =
++        _db.collection('iglesias').doc(iglesiaId).collection('redes');
++
++    // Redes a las que pertenecía y ya no pertenece: se le retira por completo.
++    final redesAQuitar =
++        redesAnterioresIds.where((id) => !redesNuevasIds.contains(id));
++    for (final redId in redesAQuitar) {
++      try {
++        await coleccionRedes.doc(redId).update({
++          'lideresIds': FieldValue.arrayRemove([miembroId]),
++          'lideresNombres': FieldValue.arrayRemove([nombreCompleto]),
++          'miembrosIds': FieldValue.arrayRemove([miembroId]),
++          'miembrosNombres': FieldValue.arrayRemove([nombreCompleto]),
++        });
++      } catch (_) {
++        // La red pudo haber sido eliminada mientras tanto; se ignora.
++      }
++    }
++
++    // Redes a las que sigue o queda asignado ahora: se asegura que esté en
++    // el arreglo correcto (líder o creyente) y no en el otro.
++    for (final redId in redesNuevasIds) {
++      try {
++        if (esLiderNuevo) {
++          await coleccionRedes.doc(redId).update({
++            'lideresIds': FieldValue.arrayUnion([miembroId]),
++            'lideresNombres': FieldValue.arrayUnion([nombreCompleto]),
++            'miembrosIds': FieldValue.arrayRemove([miembroId]),
++            'miembrosNombres': FieldValue.arrayRemove([nombreCompleto]),
++          });
++        } else {
++          await coleccionRedes.doc(redId).update({
++            'miembrosIds': FieldValue.arrayUnion([miembroId]),
++            'miembrosNombres': FieldValue.arrayUnion([nombreCompleto]),
++            'lideresIds': FieldValue.arrayRemove([miembroId]),
++            'lideresNombres': FieldValue.arrayRemove([nombreCompleto]),
++          });
++        }
++      } catch (_) {
++        // La red pudo haber sido eliminada mientras tanto; se ignora.
++      }
++    }
+   }
+ 
+   // ---- IMPORTACIÓN MASIVA DE MIEMBROS ----
+@@ -329,11 +425,17 @@ class FirestoreService {
+ 
+   Future<String?> agregarRed(Red red) async {
+     try {
+-      await _db
++      final doc = await _db
+           .collection('iglesias')
+           .doc(iglesiaId)
+           .collection('redes')
+           .add(red.toMap());
++      await _sincronizarMiembrosDeRed(
++        redId: doc.id,
++        redNombre: red.nombre,
++        lideresIdsNuevos: red.lideresIds,
++        miembrosIdsNuevos: red.miembrosIds,
++      );
+       return null;
+     } catch (e) {
+       return e.toString();
+@@ -341,20 +443,95 @@ class FirestoreService {
+   }
+ 
+   Future<void> actualizarRed(String redId, Red red) async {
+-    await _db
++    final ref = _db
+         .collection('iglesias')
+         .doc(iglesiaId)
+         .collection('redes')
+-        .doc(redId)
+-        .update(red.toMap());
++        .doc(redId);
++
++    final anteriorSnap = await ref.get();
++    final anterior =
++        anteriorSnap.exists ? Red.fromMap(redId, anteriorSnap.data()!) : null;
++
++    await ref.update(red.toMap());
++
++    await _sincronizarMiembrosDeRed(
++      redId: redId,
++      redNombre: red.nombre,
++      lideresIdsNuevos: red.lideresIds,
++      miembrosIdsNuevos: red.miembrosIds,
++      lideresIdsAnteriores: anterior?.lideresIds ?? const [],
++      miembrosIdsAnteriores: anterior?.miembrosIds ?? const [],
++    );
+   }
+ 
+   Future<void> eliminarRed(String redId) async {
+-    await _db
++    final ref = _db
+         .collection('iglesias')
+         .doc(iglesiaId)
+         .collection('redes')
+-        .doc(redId)
+-        .delete();
++        .doc(redId);
++
++    final anteriorSnap = await ref.get();
++    final anterior =
++        anteriorSnap.exists ? Red.fromMap(redId, anteriorSnap.data()!) : null;
++
++    await ref.delete();
++
++    // Si no se limpia, los miembros que pertenecían a esta red quedan con
++    // una referencia a una red que ya no existe (redesIds/redesNombres
++    // desactualizados).
++    if (anterior != null) {
++      await _sincronizarMiembrosDeRed(
++        redId: redId,
++        redNombre: anterior.nombre,
++        lideresIdsNuevos: const [],
++        miembrosIdsNuevos: const [],
++        lideresIdsAnteriores: anterior.lideresIds,
++        miembrosIdsAnteriores: anterior.miembrosIds,
++      );
++    }
++  }
++
++  /// Contraparte de [_sincronizarRedesDeMiembro]: cuando la Red se edita
++  /// directamente desde la sección de Redes (por ejemplo, se le agrega o
++  /// quita un líder desde ahí), se refleja el cambio en el perfil de cada
++  /// Miembro afectado para que ambas pantallas queden consistentes.
++  Future<void> _sincronizarMiembrosDeRed({
++    required String redId,
++    required String redNombre,
++    required List<String> lideresIdsNuevos,
++    required List<String> miembrosIdsNuevos,
++    List<String> lideresIdsAnteriores = const [],
++    List<String> miembrosIdsAnteriores = const [],
++  }) async {
++    final coleccionMiembros =
++        _db.collection('iglesias').doc(iglesiaId).collection('miembros');
++
++    final antes = {...lideresIdsAnteriores, ...miembrosIdsAnteriores};
++    final ahora = {...lideresIdsNuevos, ...miembrosIdsNuevos};
++
++    final aQuitar = antes.difference(ahora);
++    for (final miembroId in aQuitar) {
++      try {
++        await coleccionMiembros.doc(miembroId).update({
++          'redesIds': FieldValue.arrayRemove([redId]),
++          'redesNombres': FieldValue.arrayRemove([redNombre]),
++        });
++      } catch (_) {
++        // El miembro pudo haber sido eliminado mientras tanto; se ignora.
++      }
++    }
++
++    for (final miembroId in ahora) {
++      try {
++        await coleccionMiembros.doc(miembroId).update({
++          'redesIds': FieldValue.arrayUnion([redId]),
++          'redesNombres': FieldValue.arrayUnion([redNombre]),
++        });
++      } catch (_) {
++        // El miembro pudo haber sido eliminado mientras tanto; se ignora.
++      }
++    }
+   }
+ }
+\ No newline at end of file

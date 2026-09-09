@@ -23,10 +23,16 @@ const List<Color> _paletaD12 = [
   Color(0xFF90A4AE), // gris azulado
 ];
 
-/// Devuelve un color estable para un Líder D12, basado en su id.
-Color _colorParaLider(String liderId) {
-  final hash = liderId.codeUnits.fold<int>(0, (a, b) => a + b);
-  return _paletaD12[hash % _paletaD12.length];
+/// Devuelve un color para una Red, sin que dos redes de la misma lista
+/// terminen compartiendo color (mientras no haya más redes que colores
+/// en la paleta). [idsOrdenados] debe ser la lista de ids de las redes
+/// visibles en esa pantalla, ya ordenada de forma estable (por ejemplo,
+/// alfabéticamente) para que el color de cada red no cambie de un
+/// refresco a otro.
+Color _colorParaRed(String redId, List<String> idsOrdenados) {
+  final index = idsOrdenados.indexOf(redId);
+  if (index < 0) return AppColors.textoPrimario;
+  return _paletaD12[index % _paletaD12.length];
 }
 
 /// Pantalla que muestra todos los grupos pequeños en un mapa.
@@ -37,116 +43,11 @@ class MapaGruposScreen extends StatefulWidget {
   State<MapaGruposScreen> createState() => _MapaGruposScreenState();
 }
 
-class _MapaGruposScreenState extends State<MapaGruposScreen>
-    with TickerProviderStateMixin {
+class _MapaGruposScreenState extends State<MapaGruposScreen> {
   final _service = FirestoreService();
   final _mapController = MapController();
   Grupo? _grupoSeleccionado;
   final Set<String> _lideresOcultos = {};
-
-  bool _obteniendoUbicacion = false;
-  AnimationController? _animController;
-
-  @override
-  void dispose() {
-    _animController?.dispose();
-    super.dispose();
-  }
-
-  /// Botón de "centrar y orientar", igual al de Google Maps: ubica al
-  /// usuario en el centro de la pantalla con una animación fluida, y
-  /// al mismo tiempo restablece el norte del mapa hacia arriba.
-  Future<void> _centrarEnMiUbicacion() async {
-    setState(() => _obteniendoUbicacion = true);
-    try {
-      var permiso = await Geolocator.checkPermission();
-      if (permiso == LocationPermission.denied) {
-        permiso = await Geolocator.requestPermission();
-      }
-      if (permiso == LocationPermission.denied ||
-          permiso == LocationPermission.deniedForever) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permiso de ubicación denegado'),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-
-      final servicioActivo =
-          await Geolocator.isLocationServiceEnabled();
-      if (!servicioActivo) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Activa el GPS/ubicación del teléfono'),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-
-      final posicion = await Geolocator.getCurrentPosition();
-      _moverCamaraAnimada(
-        destino: LatLng(posicion.latitude, posicion.longitude),
-        zoomDestino: 15,
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo obtener tu ubicación'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _obteniendoUbicacion = false);
-    }
-  }
-
-  /// Anima la cámara del mapa de forma suave hacia el destino,
-  /// interpolando posición y zoom cuadro a cuadro. El movimiento
-  /// normal del mapa (arrastrar, hacer zoom) no se ve afectado en
-  /// absoluto, ya que esto solo corre cuando presionas el botón.
-  void _moverCamaraAnimada({
-    required LatLng destino,
-    required double zoomDestino,
-  }) {
-    _animController?.dispose();
-    final origen = _mapController.camera.center;
-    final zoomOrigen = _mapController.camera.zoom;
-
-    final latTween = Tween<double>(
-        begin: origen.latitude, end: destino.latitude);
-    final lngTween = Tween<double>(
-        begin: origen.longitude, end: destino.longitude);
-    final zoomTween =
-        Tween<double>(begin: zoomOrigen, end: zoomDestino);
-
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    final curva = CurvedAnimation(
-        parent: _animController!, curve: Curves.easeInOutCubic);
-
-    curva.addListener(() {
-      _mapController.move(
-        LatLng(latTween.evaluate(curva), lngTween.evaluate(curva)),
-        zoomTween.evaluate(curva),
-      );
-    });
-
-    _animController!.forward();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +83,9 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
               redesMapa[g.redId!] = g.redNombre ?? g.redId!;
             }
           }
+          // Orden estable para que cada red tenga siempre un color distinto
+          // de las demás (y no cambie de color entre refrescos).
+          final idsRedesOrdenados = redesMapa.keys.toList()..sort();
 
           // Se muestra un grupo si su red está visible, o si no tiene
           // red asignada (para no ocultarlo silenciosamente).
@@ -244,14 +148,15 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
                     markers: grupos.map((g) {
                       final colorMarcador = (g.redId != null &&
                               g.redId!.isNotEmpty)
-                          ? _colorParaLider(g.redId!)
+                          ? _colorParaRed(g.redId!, idsRedesOrdenados)
                           : AppColors.textoPrimario;
                       return Marker(
                         point: LatLng(g.latitud!, g.longitud!),
                         width: 44,
                         height: 44,
                         child: GestureDetector(
-                          onTap: () => _abrirFichaGrupo(context, g),
+                          onTap: () => _abrirFichaGrupo(
+                              context, g, idsRedesOrdenados),
                           child: Icon(
                             Icons.location_on,
                             color: colorMarcador,
@@ -268,13 +173,8 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
                   top: 12,
                   left: 0,
                   right: 0,
-                  child: _panelFiltroRedes(redesMapa),
+                  child: _panelFiltroRedes(redesMapa, idsRedesOrdenados),
                 ),
-              Positioned(
-                right: 16,
-                bottom: 24,
-                child: _botonCentrarBrujula(),
-              ),
             ],
           );
         },
@@ -282,27 +182,8 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
     );
   }
 
-  /// Botón flotante que centra la ubicación del usuario con una
-  /// animación suave, sin afectar el arrastre normal del mapa.
-  Widget _botonCentrarBrujula() {
-    return FloatingActionButton(
-      heroTag: 'centrar_ubicacion',
-      backgroundColor: AppColors.fondoTarjeta,
-      elevation: 3,
-      onPressed: _obteniendoUbicacion ? null : _centrarEnMiUbicacion,
-      child: _obteniendoUbicacion
-          ? const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.acento),
-            )
-          : const Icon(Icons.my_location,
-              color: AppColors.acento, size: 24),
-    );
-  }
-
-  Widget _panelFiltroRedes(Map<String, String> redesMapa) {
+  Widget _panelFiltroRedes(
+      Map<String, String> redesMapa, List<String> idsRedesOrdenados) {
     return SizedBox(
       height: 42,
       child: ListView(
@@ -311,7 +192,7 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
         children: redesMapa.entries.map((entry) {
           final id = entry.key;
           final nombre = entry.value;
-          final color = _colorParaLider(id);
+          final color = _colorParaRed(id, idsRedesOrdenados);
           final oculto = _lideresOcultos.contains(id);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -368,12 +249,14 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
     );
   }
 
-  void _abrirFichaGrupo(BuildContext context, Grupo g) {
+  void _abrirFichaGrupo(
+      BuildContext context, Grupo g, List<String> idsRedesOrdenados) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _FichaGrupo(grupo: g),
+      builder: (_) =>
+          _FichaGrupo(grupo: g, idsRedesOrdenados: idsRedesOrdenados),
     );
   }
 
@@ -395,7 +278,9 @@ class _MapaGruposScreenState extends State<MapaGruposScreen>
 
 class _FichaGrupo extends StatelessWidget {
   final Grupo grupo;
-  const _FichaGrupo({required this.grupo});
+  final List<String> idsRedesOrdenados;
+  const _FichaGrupo(
+      {required this.grupo, this.idsRedesOrdenados = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -448,23 +333,27 @@ class _FichaGrupo extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: _colorParaLider(grupo.redId ?? '')
+                        color: _colorParaRed(
+                                grupo.redId ?? '', idsRedesOrdenados)
                             .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: _colorParaLider(grupo.redId ?? '')),
+                            color: _colorParaRed(
+                                grupo.redId ?? '', idsRedesOrdenados)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.hub_outlined,
                               size: 14,
-                              color: _colorParaLider(grupo.redId ?? '')),
+                              color: _colorParaRed(
+                                  grupo.redId ?? '', idsRedesOrdenados)),
                           const SizedBox(width: 5),
                           Text(
                             grupo.redNombre!,
                             style: TextStyle(
-                              color: _colorParaLider(grupo.redId ?? ''),
+                              color: _colorParaRed(
+                                  grupo.redId ?? '', idsRedesOrdenados),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -630,6 +519,11 @@ class _PanelEstadisticas extends StatelessWidget {
     final maxRed =
         entradasRed.isEmpty ? 1 : entradasRed.first.value;
 
+    // Orden estable (independiente del orden por cantidad de arriba) para
+    // que cada red mantenga siempre el mismo color y nunca coincida con
+    // el de otra red en esta misma lista.
+    final idsRedesOrdenados = nombresRed.keys.toList()..sort();
+
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -711,7 +605,7 @@ class _PanelEstadisticas extends StatelessWidget {
                       nombre: nombresRed[e.key] ?? e.key,
                       cantidad: e.value,
                       maximo: maxRed,
-                      color: _colorParaLider(e.key),
+                      color: _colorParaRed(e.key, idsRedesOrdenados),
                       onTap: () {
                         final celulasDeRed = grupos
                             .where((g) => g.redId == e.key)
@@ -722,7 +616,7 @@ class _PanelEstadisticas extends StatelessWidget {
                           isScrollControlled: true,
                           builder: (_) => _DetalleRed(
                             nombreRed: nombresRed[e.key] ?? e.key,
-                            color: _colorParaLider(e.key),
+                            color: _colorParaRed(e.key, idsRedesOrdenados),
                             celulas: celulasDeRed,
                           ),
                         );

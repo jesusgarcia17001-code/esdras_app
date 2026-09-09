@@ -4,3 +4,13 @@ flutter build appbundle --release
 cd C:\Users\JG\Desktop\esdras_app
 
 flutter run
+
+Ddebemos revisar esto> modifica como se correlacionan los datos porfavot>
+
+Quiero>
+
+Yo creo una red. Y la red te permite selecionar lideres que conforma esa red. Ojo aparecera para seleccionar solo lideres que segun el perfil de miembros son lideres.
+
+Cuando yo creo un miembro nuevo o modifico, desde la seccion de miembros. Y debo a;adirlo a una de la red existente, y al guardarlo. Deberia aparecer automaticamente en la red donde fue asignado. Si le puse como lidere, aparesera en la red como lider, si en creyente aparecera como creyente en la red.
+
+Pero cuando toque crear un nuevo grupo, en la seccion de grupo. Voy a selccionar una de las redes previamente creadas, de la seccion de redes. Y cuando toque al selecionar los lideres de linea, al crear un nuevo grupo, me dara para seleccionar unicamente solo los lideres de linea de esa red, y asi mismo sucedera para seleccionar lideres de celula, y nuevos creyentes.

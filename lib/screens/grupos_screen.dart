@@ -6,28 +6,6 @@ import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import 'mapa_grupos_screen.dart';
 
-/// Paleta de colores por red (misma lógica que en el mapa, para que
-/// el color de cada red se vea consistente en toda la app).
-const List<Color> _paletaRedes = [
-  Color(0xFFE57373),
-  Color(0xFF64B5F6),
-  Color(0xFF81C784),
-  Color(0xFFFFB74D),
-  Color(0xFFBA68C8),
-  Color(0xFF4DD0E1),
-  Color(0xFFFFD54F),
-  Color(0xFFF06292),
-  Color(0xFFA1887F),
-  Color(0xFF90A4AE),
-];
-
-Color _colorParaRed(String redId) {
-  final hash = redId.codeUnits.fold<int>(0, (a, b) => a + b);
-  return _paletaRedes[hash % _paletaRedes.length];
-}
-
-const String _sinRedId = '__sin_red__';
-
 class GruposScreen extends StatefulWidget {
   const GruposScreen({super.key});
 
@@ -38,27 +16,13 @@ class GruposScreen extends StatefulWidget {
 class _GruposScreenState extends State<GruposScreen> {
   final _service = FirestoreService();
 
-  // Cuando es null, se muestra la lista de redes. Cuando tiene un
-  // valor, se muestran solo las células de esa red.
-  String? _redFiltroId;
-  String? _redFiltroNombre;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondoPrincipal,
       appBar: AppBar(
         backgroundColor: AppColors.fondoPrincipal,
-        leading: _redFiltroId != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() {
-                  _redFiltroId = null;
-                  _redFiltroNombre = null;
-                }),
-              )
-            : null,
-        title: Text(_redFiltroNombre ?? 'Grupos pequeños'),
+        title: const Text('Grupos pequeños'),
         actions: [
           IconButton(
             icon: const Icon(Icons.map_outlined),
@@ -82,7 +46,7 @@ class _GruposScreenState extends State<GruposScreen> {
               ConnectionState.waiting) {
             return const Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.acento));
+                    color: Colors.white));
           }
           final grupos = snapshot.data ?? [];
           if (grupos.isEmpty) {
@@ -119,57 +83,10 @@ class _GruposScreenState extends State<GruposScreen> {
               ),
             );
           }
-
-          // Vista de una red específica: solo sus células.
-          if (_redFiltroId != null) {
-            final gruposDeRed = _redFiltroId == _sinRedId
-                ? grupos
-                    .where((g) =>
-                        g.redId == null || g.redId!.isEmpty)
-                    .toList()
-                : grupos
-                    .where((g) => g.redId == _redFiltroId)
-                    .toList();
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: gruposDeRed.length,
-              itemBuilder: (_, i) => _tarjetaGrupo(gruposDeRed[i]),
-            );
-          }
-
-          // Vista principal: una tarjeta por cada red.
-          final Map<String, String> nombresRed = {};
-          final Map<String, int> conteoRed = {};
-          var sinRed = 0;
-          for (final g in grupos) {
-            if (g.redId != null && g.redId!.isNotEmpty) {
-              nombresRed[g.redId!] = g.redNombre ?? g.redId!;
-              conteoRed[g.redId!] = (conteoRed[g.redId!] ?? 0) + 1;
-            } else {
-              sinRed++;
-            }
-          }
-          final entradas = nombresRed.entries.toList()
-            ..sort((a, b) => (conteoRed[b.key] ?? 0)
-                .compareTo(conteoRed[a.key] ?? 0));
-
-          return ListView(
+          return ListView.builder(
             padding: const EdgeInsets.all(16),
-            children: [
-              ...entradas.map((e) => _tarjetaRed(
-                    redId: e.key,
-                    nombre: e.value,
-                    cantidad: conteoRed[e.key] ?? 0,
-                    color: _colorParaRed(e.key),
-                  )),
-              if (sinRed > 0)
-                _tarjetaRed(
-                  redId: _sinRedId,
-                  nombre: 'Sin red asignada',
-                  cantidad: sinRed,
-                  color: AppColors.textoTerciario,
-                ),
-            ],
+            itemCount: grupos.length,
+            itemBuilder: (_, i) => _tarjetaGrupo(grupos[i]),
           );
         },
       ),
@@ -178,63 +95,6 @@ class _GruposScreenState extends State<GruposScreen> {
         onPressed: () => _abrirFormulario(context),
         child: const Icon(Icons.add,
             color: AppColors.textoPrimario),
-      ),
-    );
-  }
-
-  Widget _tarjetaRed({
-    required String redId,
-    required String nombre,
-    required int cantidad,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: () => setState(() {
-        _redFiltroId = redId;
-        _redFiltroNombre = nombre;
-      }),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.fondoTarjeta,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borde),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.hub_outlined, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(nombre,
-                      style: const TextStyle(
-                          color: AppColors.textoPrimario,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Text(
-                      '$cantidad ${cantidad == 1 ? 'célula' : 'células'}',
-                      style: const TextStyle(
-                          color: AppColors.textoSecundario,
-                          fontSize: 12)),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right,
-                color: AppColors.textoTerciario),
-          ],
-        ),
       ),
     );
   }
@@ -652,17 +512,18 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
     required List<Miembro> seleccionados,
     required Function(List<Miembro>) onConfirmar,
     String? filtroRol,
-    List<String>? soloIds,
+    String? redId,
+    bool soloCreyentes = false,
   }) {
-    var disponibles = filtroRol != null
-        ? _todosMiembros
-            .where((m) => m.rolLider == filtroRol)
-            .toList()
-        : _todosMiembros;
-    if (soloIds != null) {
-      disponibles =
-          disponibles.where((m) => soloIds.contains(m.id)).toList();
-    }
+    // Filtra siempre por la red seleccionada del grupo (cada lista de
+    // líderes/creyentes debe salir SOLO de esa red), y además por rol
+    // cuando aplica (líder de línea / líder de cédula / creyente).
+    final disponibles = _todosMiembros.where((m) {
+      if (redId != null && !m.redesIds.contains(redId)) return false;
+      if (filtroRol != null && m.rolLider != filtroRol) return false;
+      if (soloCreyentes && m.esLider) return false;
+      return true;
+    }).toList();
     final tempSel = List<Miembro>.from(seleccionados);
     var busqueda = '';
 
@@ -718,10 +579,11 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
                     child: disponibles.isEmpty
                         ? Center(
                             child: Text(
-                              soloIds != null
-                                  ? 'Esta red no tiene líderes de línea registrados'
-                                  : (filtroRol != null
-                                      ? 'No hay líderes con ese rol'
+                              filtroRol != null
+                                  ? 'Esta red no tiene "$filtroRol" registrados'
+                                  : (soloCreyentes
+                                      ? 'Esta red no tiene creyentes '
+                                          'registrados'
                                       : 'No hay miembros registrados'),
                               style: const TextStyle(
                                   color: AppColors.textoSecundario),
@@ -825,16 +687,28 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
                 title: Text(r.nombre,
                     style: const TextStyle(
                         color: AppColors.textoPrimario, fontSize: 14)),
-                subtitle: Text('${r.lideresIds.length} líderes de línea',
+                subtitle: Text('${r.lideresIds.length} líderes',
                     style: const TextStyle(
                         color: AppColors.textoSecundario, fontSize: 11)),
                 onTap: () {
                   setState(() {
-                    // Si cambia de red, se limpian los líderes de línea
-                    // elegidos que no pertenezcan a la nueva red.
+                    // Si cambia de red, se limpian los líderes/creyentes ya
+                    // elegidos que no pertenezcan a la nueva red, para no
+                    // arrastrar gente de la red anterior.
                     if (_redId != r.id) {
                       _lideresLinea = _lideresLinea
-                          .where((m) => r.lideresIds.contains(m.id))
+                          .where((m) =>
+                              m.redesIds.contains(r.id) &&
+                              m.rolLider == 'Líder de línea')
+                          .toList();
+                      _lideresCedula = _lideresCedula
+                          .where((m) =>
+                              m.redesIds.contains(r.id) &&
+                              m.rolLider == 'Líder de cédula')
+                          .toList();
+                      _miembros = _miembros
+                          .where((m) =>
+                              m.redesIds.contains(r.id) && !m.esLider)
                           .toList();
                     }
                     _redId = r.id;
@@ -1021,12 +895,11 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
                   );
                   return;
                 }
-                final red = _redesDisponibles
-                    .firstWhere((r) => r.id == _redId);
                 _seleccionarPersonas(
                   titulo: 'Líderes de línea de $_redNombre',
                   seleccionados: _lideresLinea,
-                  soloIds: red.lideresIds,
+                  redId: _redId,
+                  filtroRol: 'Líder de línea',
                   onConfirmar: (lista) =>
                       setState(() => _lideresLinea = lista),
                 );
@@ -1038,13 +911,26 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
               titulo: 'LÍDERES DE CÉDULA',
               seleccionados: _lideresCedula,
               icono: Icons.person,
-              onTap: () => _seleccionarPersonas(
-                titulo: 'Seleccionar líderes de cédula',
-                seleccionados: _lideresCedula,
-                filtroRol: 'Líder de cédula',
-                onConfirmar: (lista) =>
-                    setState(() => _lideresCedula = lista),
-              ),
+              onTap: () {
+                if (_redId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Primero selecciona la red'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+                _seleccionarPersonas(
+                  titulo: 'Líderes de cédula de $_redNombre',
+                  seleccionados: _lideresCedula,
+                  redId: _redId,
+                  filtroRol: 'Líder de cédula',
+                  onConfirmar: (lista) =>
+                      setState(() => _lideresCedula = lista),
+                );
+              },
             ),
             const SizedBox(height: 12),
 
@@ -1052,12 +938,26 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
               titulo: 'NUEVOS CREYENTES',
               seleccionados: _miembros,
               icono: Icons.people,
-              onTap: () => _seleccionarPersonas(
-                titulo: 'Seleccionar nuevos creyentes',
-                seleccionados: _miembros,
-                onConfirmar: (lista) =>
-                    setState(() => _miembros = lista),
-              ),
+              onTap: () {
+                if (_redId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Primero selecciona la red'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+                _seleccionarPersonas(
+                  titulo: 'Nuevos creyentes de $_redNombre',
+                  seleccionados: _miembros,
+                  redId: _redId,
+                  soloCreyentes: true,
+                  onConfirmar: (lista) =>
+                      setState(() => _miembros = lista),
+                );
+              },
             ),
 
             const SizedBox(height: 24),
@@ -1251,22 +1151,6 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
       fechaCreacion: DateTime.now(),
     );
     await widget.onGuardar(grupo);
-
-    // Si la célula pertenece a una red, todos los que estén en ella
-    // (líderes D12, líderes D72 y creyentes por igual) se sincronizan
-    // automáticamente como miembros de esa red.
-    if (_redId != null && _redId!.isNotEmpty) {
-      final Map<String, String> personas = {};
-      for (final m in [..._lideresLinea, ..._lideresCedula, ..._miembros]) {
-        personas[m.id!] = m.nombreCompleto;
-      }
-      await _service.sincronizarPersonasConRed(
-        personas: personas.entries.toList(),
-        redId: _redId!,
-        redNombre: _redNombre,
-      );
-    }
-
     setState(() => _cargando = false);
   }
 }

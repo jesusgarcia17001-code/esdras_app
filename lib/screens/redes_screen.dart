@@ -376,14 +376,12 @@ class _RedesScreenState extends State<RedesScreen> {
         red: red,
         tiposPredefinidos: _tiposPredefinidos,
         onGuardar: (r) async {
-          String? idFinal = red?.id;
           if (red == null) {
-            idFinal = await _service.agregarRed(r);
+            await _service.agregarRed(r);
           } else {
             await _service.actualizarRed(red.id!, r);
           }
-          if (context.mounted) Navigator.pop(context);
-          return idFinal;
+          Navigator.pop(context);
         },
       ),
     );
@@ -394,7 +392,7 @@ class _RedesScreenState extends State<RedesScreen> {
 class FormularioRed extends StatefulWidget {
   final Red? red;
   final List<Map<String, dynamic>> tiposPredefinidos;
-  final Future<String?> Function(Red) onGuardar;
+  final Function(Red) onGuardar;
 
   const FormularioRed({
     super.key,
@@ -446,16 +444,23 @@ class _FormularioRedState extends State<FormularioRed> {
     required String titulo,
     required List<Miembro> seleccionados,
     required Function(List<Miembro>) onConfirmar,
+    bool soloLideres = false,
   }) {
     final temp = List<Miembro>.from(seleccionados);
     var busqueda = '';
+    // Para "líderes de la red" solo deben aparecer miembros cuyo perfil
+    // ya está marcado como líder (esLider = true); para "miembros" de
+    // la red se puede elegir entre todos.
+    final disponibles = soloLideres
+        ? _todosMiembros.where((m) => m.esLider).toList()
+        : _todosMiembros;
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) {
           final filtrados = busqueda.isEmpty
-              ? _todosMiembros
-              : _todosMiembros
+              ? disponibles
+              : disponibles
                   .where((m) => m.nombreCompleto
                       .toLowerCase()
                       .contains(busqueda.toLowerCase()))
@@ -470,7 +475,7 @@ class _FormularioRedState extends State<FormularioRed> {
               height: 360,
               child: Column(
                 children: [
-                  if (_todosMiembros.isNotEmpty)
+                  if (disponibles.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: TextField(
@@ -497,10 +502,15 @@ class _FormularioRedState extends State<FormularioRed> {
                       ),
                     ),
                   Expanded(
-                    child: _todosMiembros.isEmpty
-                        ? const Center(
-                            child: Text('No hay miembros registrados',
-                                style: TextStyle(
+                    child: disponibles.isEmpty
+                        ? Center(
+                            child: Text(
+                                soloLideres
+                                    ? 'No hay miembros marcados como líder '
+                                        'todavía'
+                                    : 'No hay miembros registrados',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
                                     color: AppColors.textoSecundario)))
                         : filtrados.isEmpty
                             ? const Center(
@@ -658,6 +668,7 @@ class _FormularioRedState extends State<FormularioRed> {
               onTap: () => _seleccionar(
                 titulo: 'Seleccionar líderes',
                 seleccionados: _lideres,
+                soloLideres: true,
                 onConfirmar: (l) =>
                     setState(() => _lideres = l),
               ),
@@ -827,20 +838,7 @@ class _FormularioRedState extends State<FormularioRed> {
           _miembros.map((m) => m.nombreCompleto).toList(),
       fechaCreacion: DateTime.now(),
     );
-    // Los miembros seleccionados aquí se sincronizan hacia atrás:
-    // cada uno de sus perfiles se actualiza para que muestre que
-    // pertenece a esta red, sin importar por dónde se haya asignado.
-    final redId = await widget.onGuardar(red);
-    if (redId != null && redId.isNotEmpty && _miembros.isNotEmpty) {
-      await _service.sincronizarPersonasConRed(
-        personas: _miembros
-            .map((m) => MapEntry(m.id!, m.nombreCompleto))
-            .toList(),
-        redId: redId,
-        redNombre: red.nombre,
-      );
-    }
-
+    await widget.onGuardar(red);
     setState(() => _cargando = false);
   }
 }
