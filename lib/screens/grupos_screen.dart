@@ -5,6 +5,7 @@ import '../models/red_model.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import 'mapa_grupos_screen.dart';
+import 'redes_screen.dart' show FormularioRed;
 
 class GruposScreen extends StatefulWidget {
   const GruposScreen({super.key});
@@ -76,6 +77,227 @@ class _GruposScreenState extends State<GruposScreen> {
                     onPressed: () =>
                         _abrirFormulario(context),
                     child: const Text('Crear primer grupo',
+                        style: TextStyle(
+                            color: AppColors.textoPrimario)),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Se agrupan los grupos pequeños por la red a la que pertenecen,
+          // en vez de mostrarlos todos sueltos en una sola lista larga.
+          // La clave '__sin_red__' es solo para datos antiguos que se
+          // hayan quedado sin red asignada; los grupos nuevos siempre
+          // deben tener una red (se exige al guardar en FormularioGrupo).
+          final Map<String, List<Grupo>> porRed = {};
+          final Map<String, String> nombresPorRed = {};
+          for (final g in grupos) {
+            final clave = g.redId ?? '__sin_red__';
+            porRed.putIfAbsent(clave, () => []).add(g);
+            nombresPorRed[clave] =
+                (g.redNombre != null && g.redNombre!.isNotEmpty)
+                    ? g.redNombre!
+                    : 'Sin red asignada';
+          }
+          final claves = porRed.keys.toList()
+            ..sort((a, b) =>
+                nombresPorRed[a]!.compareTo(nombresPorRed[b]!));
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: claves.length,
+            itemBuilder: (_, i) {
+              final clave = claves[i];
+              return _tarjetaRed(
+                redId: clave == '__sin_red__' ? null : clave,
+                redNombre: nombresPorRed[clave]!,
+                gruposDeRed: porRed[clave]!,
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.fondoTarjeta,
+        onPressed: () => _abrirFormulario(context),
+        child: const Icon(Icons.add,
+            color: AppColors.textoPrimario),
+      ),
+    );
+  }
+
+  Widget _tarjetaRed({
+    required String? redId,
+    required String redNombre,
+    required List<Grupo> gruposDeRed,
+  }) {
+    final activos =
+        gruposDeRed.where((g) => g.estado == 'Activo').length;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GruposDeRedScreen(
+            redId: redId,
+            redNombre: redNombre,
+          ),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppColors.fondoTarjeta,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borde),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.acentoSuave,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borde),
+                ),
+                child: const Icon(Icons.hub_outlined,
+                    color: AppColors.textoPrimario, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(redNombre,
+                        style: const TextStyle(
+                            color: AppColors.textoPrimario,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text(
+                        '${gruposDeRed.length} grupo'
+                        '${gruposDeRed.length == 1 ? '' : 's'} '
+                        'pequeño${gruposDeRed.length == 1 ? '' : 's'}'
+                        ' · $activos activo'
+                        '${activos == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                            color: AppColors.textoSecundario,
+                            fontSize: 12)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  color: AppColors.textoTerciario, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _abrirFormulario(BuildContext context, {Grupo? grupo}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.fondoSecundario,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => FormularioGrupo(
+        grupo: grupo,
+        onGuardar: (g) async {
+          if (grupo == null) {
+            await _service.agregarGrupo(g);
+          } else {
+            await _service.actualizarGrupo(grupo.id!, g);
+          }
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+}
+
+// ---- PANTALLA DE GRUPOS DE UNA RED ----
+// Muestra solo los grupos pequeños que pertenecen a la red indicada.
+// Se abre al tocar una tarjeta de red en GruposScreen.
+class GruposDeRedScreen extends StatefulWidget {
+  final String? redId;
+  final String redNombre;
+
+  const GruposDeRedScreen({
+    super.key,
+    required this.redId,
+    required this.redNombre,
+  });
+
+  @override
+  State<GruposDeRedScreen> createState() =>
+      _GruposDeRedScreenState();
+}
+
+class _GruposDeRedScreenState extends State<GruposDeRedScreen> {
+  final _service = FirestoreService();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.fondoPrincipal,
+      appBar: AppBar(
+        backgroundColor: AppColors.fondoPrincipal,
+        title: Text(widget.redNombre),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _abrirFormulario(context),
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<Grupo>>(
+        stream: _service.getGrupos(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(
+                    color: Colors.white));
+          }
+          final grupos = (snapshot.data ?? [])
+              .where((g) => g.redId == widget.redId)
+              .toList();
+          if (grupos.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 64, height: 64,
+                    decoration: BoxDecoration(
+                      color: AppColors.fondoTarjeta,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.borde),
+                    ),
+                    child: const Icon(
+                        Icons.home_work_outlined,
+                        color: AppColors.textoSecundario,
+                        size: 28),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                      'Esta red todavía no tiene grupos '
+                      'pequeños',
+                      style: const TextStyle(
+                          color: AppColors.textoSecundario,
+                          fontSize: 15)),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () =>
+                        _abrirFormulario(context),
+                    child: const Text('Crear grupo en esta red',
                         style: TextStyle(
                             color: AppColors.textoPrimario)),
                   ),
@@ -412,6 +634,8 @@ class _GruposScreenState extends State<GruposScreen> {
       ),
       builder: (_) => FormularioGrupo(
         grupo: grupo,
+        redIdInicial: widget.redId,
+        redNombreInicial: widget.redNombre,
         onGuardar: (g) async {
           if (grupo == null) {
             await _service.agregarGrupo(g);
@@ -428,10 +652,17 @@ class _GruposScreenState extends State<GruposScreen> {
 // ---- FORMULARIO GRUPO ----
 class FormularioGrupo extends StatefulWidget {
   final Grupo? grupo;
+  final String? redIdInicial;
+  final String? redNombreInicial;
   final Function(Grupo) onGuardar;
 
-  const FormularioGrupo(
-      {super.key, this.grupo, required this.onGuardar});
+  const FormularioGrupo({
+    super.key,
+    this.grupo,
+    this.redIdInicial,
+    this.redNombreInicial,
+    required this.onGuardar,
+  });
 
   @override
   State<FormularioGrupo> createState() =>
@@ -457,6 +688,18 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
   List<Miembro> _miembros = [];
   bool _seleccionesCargadas = false;
 
+  // Mismos tipos predefinidos que en RedesScreen, para poder crear una
+  // red nueva sin salir de este formulario si la que se necesita no
+  // existe todavía.
+  final List<Map<String, dynamic>> _tiposRedPredefinidos = const [
+    {'tipo': 'Hombres', 'icono': '👨'},
+    {'tipo': 'Mujeres', 'icono': '👩'},
+    {'tipo': 'Jóvenes', 'icono': '🧑'},
+    {'tipo': 'Niños', 'icono': '👦'},
+    {'tipo': 'Adultos mayores', 'icono': '👴'},
+    {'tipo': 'Personalizada', 'icono': '👥'},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -474,6 +717,11 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
       _redNombre = g.redNombre ?? '';
       _latitud = g.latitud;
       _longitud = g.longitud;
+    } else if (widget.redIdInicial != null) {
+      // Se llegó aquí desde la pantalla de una red específica: se
+      // preselecciona esa red, pero el usuario todavía puede cambiarla.
+      _redId = widget.redIdInicial;
+      _redNombre = widget.redNombreInicial ?? '';
     }
   }
 
@@ -657,17 +905,6 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
   }
 
   void _seleccionarRed() {
-    if (_redesDisponibles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'No hay redes creadas todavía. Crea una red primero.'),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -676,48 +913,95 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
             style: TextStyle(color: AppColors.textoPrimario)),
         content: SizedBox(
           width: double.maxFinite,
-          height: 300,
-          child: ListView.builder(
-            itemCount: _redesDisponibles.length,
-            itemBuilder: (_, i) {
-              final r = _redesDisponibles[i];
-              return ListTile(
-                leading: Text(r.icono,
-                    style: const TextStyle(fontSize: 20)),
-                title: Text(r.nombre,
-                    style: const TextStyle(
-                        color: AppColors.textoPrimario, fontSize: 14)),
-                subtitle: Text('${r.lideresIds.length} líderes',
-                    style: const TextStyle(
-                        color: AppColors.textoSecundario, fontSize: 11)),
+          height: 340,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: _redesDisponibles.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 8),
+                          child: Text(
+                            'Todavía no has creado ninguna red.\n'
+                            'Crea la primera para poder asignarle '
+                            'este grupo.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: AppColors.textoSecundario,
+                                fontSize: 13),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _redesDisponibles.length,
+                        itemBuilder: (_, i) {
+                          final r = _redesDisponibles[i];
+                          return ListTile(
+                            leading: Text(r.icono,
+                                style:
+                                    const TextStyle(fontSize: 20)),
+                            title: Text(r.nombre,
+                                style: const TextStyle(
+                                    color: AppColors.textoPrimario,
+                                    fontSize: 14)),
+                            subtitle: Text(
+                                '${r.lideresIds.length} líderes',
+                                style: const TextStyle(
+                                    color:
+                                        AppColors.textoSecundario,
+                                    fontSize: 11)),
+                            onTap: () {
+                              setState(() {
+                                // Si cambia de red, se limpian los
+                                // líderes/creyentes ya elegidos que
+                                // no pertenezcan a la nueva red, para
+                                // no arrastrar gente de la red
+                                // anterior.
+                                if (_redId != r.id) {
+                                  _lideresLinea = _lideresLinea
+                                      .where((m) =>
+                                          m.redesIds.contains(r.id) &&
+                                          m.rolLider ==
+                                              'Líder de línea')
+                                      .toList();
+                                  _lideresCedula = _lideresCedula
+                                      .where((m) =>
+                                          m.redesIds.contains(r.id) &&
+                                          m.rolLider ==
+                                              'Líder de cédula')
+                                      .toList();
+                                  _miembros = _miembros
+                                      .where((m) =>
+                                          m.redesIds.contains(r.id) &&
+                                          !m.esLider)
+                                      .toList();
+                                }
+                                _redId = r.id;
+                                _redNombre = r.nombre;
+                              });
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+              ),
+              Container(height: 0.5, color: AppColors.borde),
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline,
+                    color: AppColors.textoPrimario),
+                title: const Text('Crear nueva red',
+                    style: TextStyle(
+                        color: AppColors.textoPrimario,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14)),
                 onTap: () {
-                  setState(() {
-                    // Si cambia de red, se limpian los líderes/creyentes ya
-                    // elegidos que no pertenezcan a la nueva red, para no
-                    // arrastrar gente de la red anterior.
-                    if (_redId != r.id) {
-                      _lideresLinea = _lideresLinea
-                          .where((m) =>
-                              m.redesIds.contains(r.id) &&
-                              m.rolLider == 'Líder de línea')
-                          .toList();
-                      _lideresCedula = _lideresCedula
-                          .where((m) =>
-                              m.redesIds.contains(r.id) &&
-                              m.rolLider == 'Líder de cédula')
-                          .toList();
-                      _miembros = _miembros
-                          .where((m) =>
-                              m.redesIds.contains(r.id) && !m.esLider)
-                          .toList();
-                    }
-                    _redId = r.id;
-                    _redNombre = r.nombre;
-                  });
                   Navigator.pop(context);
+                  _crearRedYSeleccionar();
                 },
-              );
-            },
+              ),
+            ],
           ),
         ),
         actions: [
@@ -727,6 +1011,44 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
                 style: TextStyle(color: AppColors.textoSecundario)),
           ),
         ],
+      ),
+    );
+  }
+
+  // Abre el mismo formulario que se usa en la pantalla de Redes para
+  // crear una red nueva, sin salir de este formulario de grupo. Al
+  // guardarse, la nueva red queda seleccionada automáticamente.
+  void _crearRedYSeleccionar() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.fondoSecundario,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => FormularioRed(
+        tiposPredefinidos: _tiposRedPredefinidos,
+        onGuardar: (r) async {
+          final nuevoId = await _service.agregarRed(r);
+          if (!mounted) return;
+          Navigator.pop(context);
+          if (nuevoId != null) {
+            setState(() {
+              _redId = nuevoId;
+              _redNombre = r.nombre;
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudo crear la red, intenta '
+                    'de nuevo'),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -1121,6 +1443,18 @@ class _FormularioGrupoState extends State<FormularioGrupo> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('El nombre del grupo es obligatorio'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (_redId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Debes seleccionar (o crear) la red a la que '
+              'pertenece este grupo'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),

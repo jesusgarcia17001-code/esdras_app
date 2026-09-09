@@ -423,6 +423,11 @@ class FirestoreService {
             .toList());
   }
 
+  /// Devuelve el ID del documento de la nueva red si se creó con éxito,
+  /// o null si algo falló. (Antes devolvía null en éxito y el mensaje de
+  /// error en caso de falla; se cambió para poder seleccionar la red
+  /// recién creada automáticamente justo después de crearla desde el
+  /// formulario de Grupos.)
   Future<String?> agregarRed(Red red) async {
     try {
       final doc = await _db
@@ -436,9 +441,9 @@ class FirestoreService {
         lideresIdsNuevos: red.lideresIds,
         miembrosIdsNuevos: red.miembrosIds,
       );
-      return null;
+      return doc.id;
     } catch (e) {
-      return e.toString();
+      return null;
     }
   }
 

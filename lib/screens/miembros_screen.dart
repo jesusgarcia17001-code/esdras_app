@@ -2007,23 +2007,12 @@ class _FormularioMiembroScreenState
           widget.miembro?.fechaRegistro ?? DateTime.now(),
     );
 
-    final miembroId = await widget.onGuardar(miembro);
-
-    // El miembro se sincroniza hacia adelante: cada red que se le
-    // haya asignado aquí lo agrega automáticamente a su propia lista
-    // de miembros, sin tener que repetir el trabajo desde Redes.
-    if (miembroId != null && _redesIdsSel.isNotEmpty) {
-      for (var i = 0; i < _redesIdsSel.length; i++) {
-        await _firestoreService.sincronizarPersonasConRed(
-          personas: [
-            MapEntry(miembroId, _nombre.text.trim())
-          ],
-          redId: _redesIdsSel[i],
-          redNombre:
-              i < _redesSel.length ? _redesSel[i] : _redesIdsSel[i],
-        );
-      }
-    }
+    // Nota: NO hace falta sincronizar manualmente al miembro con sus
+    // Redes aquí. onGuardar ya llama a agregarMiembro()/actualizarMiembro()
+    // en FirestoreService, y esos métodos sincronizan automáticamente al
+    // miembro con la lista de miembros/líderes de cada Red que se le
+    // haya asignado (ver _sincronizarRedesDeMiembro en firestore_service.dart).
+    await widget.onGuardar(miembro);
 
     setState(() => _cargando = false);
 
